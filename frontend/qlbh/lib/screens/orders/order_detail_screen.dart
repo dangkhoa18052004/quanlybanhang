@@ -2,10 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../providers/order_provider.dart';
 import '../../config/theme_config.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/custom_button.dart';
+import '../reviews/write_review_screen.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final int orderId;
@@ -114,12 +116,29 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                order.orderNumber,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      order.orderNumber,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.copy, size: 20),
+                                    onPressed: () {
+                                      // Copy order number
+                                      Fluttertoast.showToast(
+                                        msg: 'Đã sao chép mã đơn hàng',
+                                      );
+                                    },
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 8),
                               Text(
@@ -135,7 +154,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Status
+                      // Status Timeline
                       Card(
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -143,38 +162,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'Trạng thái',
+                                'Trạng thái đơn hàng',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  const Text('Đơn hàng: '),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.primaryColor.withOpacity(
-                                        0.1,
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      Helpers.getOrderStatusText(order.status),
-                                      style: const TextStyle(
-                                        color: AppTheme.primaryColor,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 16),
+                              _buildStatusTimeline(order.status),
+                              const SizedBox(height: 16),
                               Row(
                                 children: [
                                   const Text('Thanh toán: '),
@@ -237,6 +233,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 'Địa chỉ',
                                 order.shippingAddress,
                               ),
+                              const SizedBox(height: 8),
+                              _buildInfoRow(
+                                Icons.payment,
+                                'Phương thức',
+                                order.paymentMethod == 'momo' ? 'MoMo' : 'COD',
+                              ),
                             ],
                           ),
                         ),
@@ -261,14 +263,23 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             child: Row(
                               children: [
                                 // Product Image
-                                Container(
-                                  width: 60,
-                                  height: 60,
-                                  decoration: BoxDecoration(
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    width: 70,
+                                    height: 70,
                                     color: Colors.grey[200],
-                                    borderRadius: BorderRadius.circular(8),
+                                    child: item.productImage != null
+                                        ? CachedNetworkImage(
+                                            imageUrl:
+                                                'http://10.0.2.2:5000${item.productImage}',
+                                            fit: BoxFit.cover,
+                                            errorWidget:
+                                                (context, url, error) =>
+                                                    const Icon(Icons.image),
+                                          )
+                                        : const Icon(Icons.image),
                                   ),
-                                  child: const Icon(Icons.image),
                                 ),
                                 const SizedBox(width: 12),
 
@@ -284,6 +295,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w600,
+                                          fontSize: 14,
                                         ),
                                       ),
                                       const SizedBox(height: 4),
@@ -291,6 +303,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                         'x${item.quantity}',
                                         style: TextStyle(
                                           color: Colors.grey[600],
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        Helpers.formatCurrency(item.price),
+                                        style: TextStyle(
+                                          color: Colors.grey[700],
+                                          fontSize: 13,
                                         ),
                                       ),
                                     ],
@@ -303,6 +324,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: AppTheme.primaryColor,
+                                    fontSize: 15,
                                   ),
                                 ),
                               ],
@@ -323,9 +345,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 Helpers.formatCurrency(order.subtotal),
                               ),
                               const SizedBox(height: 8),
+                              if (order.discountAmount > 0) ...[
+                                _buildSummaryRow(
+                                  'Giảm giá (${order.discountCode ?? ""}):',
+                                  '-${Helpers.formatCurrency(order.discountAmount)}',
+                                  color: AppTheme.successColor,
+                                ),
+                                const SizedBox(height: 8),
+                              ],
                               _buildSummaryRow(
-                                'Giảm giá:',
-                                '-${Helpers.formatCurrency(order.discountAmount)}',
+                                'Phí vận chuyển:',
+                                'Miễn phí',
+                                color: AppTheme.successColor,
                               ),
                               const Divider(height: 24),
                               _buildSummaryRow(
@@ -342,33 +373,151 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 ),
               ),
 
-              // Cancel Button
-              if (order.status == 'pending' && order.paymentStatus != 'paid')
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, -2),
-                      ),
+              // Action Buttons
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Cancel Button (only for pending orders)
+                      if (order.status == 'pending' &&
+                          order.paymentStatus != 'paid')
+                        CustomButton(
+                          text: 'Hủy đơn hàng',
+                          onPressed: _cancelOrder,
+                          isOutlined: true,
+                          color: Colors.red,
+                        ),
+
+                      // Review Button (only for delivered orders)
+                      if (order.status == 'delivered')
+                        CustomButton(
+                          text: 'Đánh giá sản phẩm',
+                          onPressed: () {
+                            // Navigate to review screen for first item
+                            if (order.items != null &&
+                                order.items!.isNotEmpty) {
+                              final firstItem = order.items!.first;
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => WriteReviewScreen(
+                                    productId: firstItem.productId,
+                                    orderId: order.id,
+                                    productName: firstItem.productName,
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          icon: Icons.rate_review,
+                        ),
+
+                      // Contact Support Button
+                      if (order.status != 'cancelled')
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Fluttertoast.showToast(
+                                msg: 'Chức năng đang phát triển',
+                              );
+                            },
+                            icon: const Icon(Icons.headset_mic),
+                            label: const Text('Liên hệ hỗ trợ'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(double.infinity, 50),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
-                  child: SafeArea(
-                    child: CustomButton(
-                      text: 'Hủy đơn hàng',
-                      onPressed: _cancelOrder,
-                      isOutlined: true,
-                      color: Colors.red,
-                    ),
-                  ),
                 ),
+              ),
             ],
           );
         },
       ),
+    );
+  }
+
+  Widget _buildStatusTimeline(String currentStatus) {
+    final statuses = [
+      {'key': 'pending', 'label': 'Chờ xác nhận', 'icon': Icons.schedule},
+      {'key': 'confirmed', 'label': 'Đã xác nhận', 'icon': Icons.check_circle},
+      {'key': 'shipping', 'label': 'Đang giao', 'icon': Icons.local_shipping},
+      {'key': 'delivered', 'label': 'Đã giao', 'icon': Icons.done_all},
+    ];
+
+    int currentIndex = statuses.indexWhere((s) => s['key'] == currentStatus);
+    if (currentStatus == 'cancelled') currentIndex = -1;
+
+    return Column(
+      children: List.generate(statuses.length, (index) {
+        final status = statuses[index];
+        final isCompleted = index <= currentIndex;
+        final isCurrent = index == currentIndex;
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Column(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isCompleted
+                        ? AppTheme.primaryColor
+                        : Colors.grey[300],
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    status['icon'] as IconData,
+                    color: isCompleted ? Colors.white : Colors.grey[600],
+                    size: 20,
+                  ),
+                ),
+                if (index < statuses.length - 1)
+                  Container(
+                    width: 2,
+                    height: 40,
+                    color: isCompleted
+                        ? AppTheme.primaryColor
+                        : Colors.grey[300],
+                  ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 8),
+                child: Text(
+                  status['label'] as String,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                    color: isCompleted
+                        ? AppTheme.textPrimaryColor
+                        : Colors.grey[600],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      }),
     );
   }
 
@@ -401,7 +550,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildSummaryRow(String label, String value, {bool isTotal = false}) {
+  Widget _buildSummaryRow(
+    String label,
+    String value, {
+    bool isTotal = false,
+    Color? color,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -417,7 +571,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           style: TextStyle(
             fontSize: isTotal ? 18 : 14,
             fontWeight: isTotal ? FontWeight.bold : FontWeight.w600,
-            color: isTotal ? AppTheme.primaryColor : null,
+            color: color ?? (isTotal ? AppTheme.primaryColor : null),
           ),
         ),
       ],

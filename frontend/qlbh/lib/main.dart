@@ -7,7 +7,7 @@ import 'providers/product_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/order_provider.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/home/home_screen.dart';
+import 'screens/main_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -46,24 +46,40 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _initialize();
+
+    // Sử dụng WidgetsBinding để đảm bảo build đã hoàn tất
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialize();
+    });
   }
 
   Future<void> _initialize() async {
-    final authProvider = context.read<AuthProvider>();
-    await authProvider.initialize();
+    try {
+      // Sử dụng Provider.of với listen: false để tránh rebuild
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    if (!mounted) return;
+      await authProvider.initialize();
 
-    // Navigate to appropriate screen
-    if (authProvider.isLoggedIn) {
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const MainScreen()));
-    } else {
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+      if (!mounted) return;
+
+      // Navigate to appropriate screen
+      if (authProvider.isLoggedIn) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const MainScreen()),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
+    } catch (e) {
+      print('Initialization error: $e');
+      // Nếu có lỗi, vẫn chuyển đến login screen
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
     }
   }
 

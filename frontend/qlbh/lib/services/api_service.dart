@@ -20,9 +20,23 @@ class ApiService {
 
     if (needsAuth) {
       final token = await _getToken();
+
+      print('[API DEBUG] ===== TOKEN DEBUG =====');
+      print('[API DEBUG] Token exists: ${token != null}');
+      print('[API DEBUG] Token length: ${token?.length ?? 0}');
+      print(
+        '[API DEBUG] Token (first 50 chars): ${token?.substring(0, token.length > 50 ? 50 : token.length)}',
+      );
+
       if (token != null) {
         headers['Authorization'] = 'Bearer $token';
+        print(
+          '[API DEBUG] Authorization header: Bearer ${token.substring(0, 20)}...',
+        );
+      } else {
+        print('[API DEBUG] ❌ NO TOKEN FOUND!');
       }
+      print('[API DEBUG] ====================');
     }
 
     return headers;

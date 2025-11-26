@@ -1,114 +1,118 @@
-// lib/providers/product_provider.dart
+// lib/providers/cart_provider.dart
 import 'package:flutter/material.dart';
-import '../models/product.dart';
-import '../models/category.dart';
-import '../services/product_service.dart';
+import '../models/cart_item.dart';
+import '../services/cart_service.dart';
 
-class ProductProvider with ChangeNotifier {
-  List<Product> _products = [];
-  List<Category> _categories = [];
-  Product? _selectedProduct;
+class CartProvider with ChangeNotifier {
+  List<CartItem> _items = [];
+  double _total = 0;
+  int _count = 0;
 
   bool _isLoading = false;
   String? _error;
 
-  int _currentPage = 1;
-  int _totalPages = 1;
-  bool _hasMore = true;
-
   // Getters
-  List<Product> get products => _products;
-  List<Category> get categories => _categories;
-  Product? get selectedProduct => _selectedProduct;
+  List<CartItem> get items => _items;
+  double get total => _total;
+  int get count => _count;
+  int get itemCount => _count;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  bool get hasMore => _hasMore;
+  bool get isEmpty => _items.isEmpty;
 
-  // Load categories
-  Future<void> loadCategories() async {
-    try {
-      _categories = await ProductService.getCategories();
-      notifyListeners();
-    } catch (e) {
-      _error = e.toString();
-      notifyListeners();
-    }
-  }
-
-  // Load products
-  Future<void> loadProducts({
-    bool refresh = false,
-    int? categoryId,
-    String? search,
-    String sortBy = 'newest',
-  }) async {
-    if (refresh) {
-      _currentPage = 1;
-      _products.clear();
-      _hasMore = true;
-    }
-
-    if (!_hasMore || _isLoading) return;
-
+  // Load cart
+  Future<void> loadCart() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final result = await ProductService.getProducts(
-        page: _currentPage,
-        categoryId: categoryId,
-        search: search,
-        sortBy: sortBy,
-      );
+      final result = await CartService.getCart();
+      _items = result['items'];
+      _total = result['total'];
+      _count = result['count'];
 
-      final List<Product> newProducts = result['products'];
-      final pagination = result['pagination'];
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 
-      if (refresh) {
-        _products = newProducts;
-      } else {
-        _products.addAll(newProducts);
+  // Add to cart
+  Future<bool> addToCart(int productId, {int quantity = 1}) async {
+    try {
+      await CartService.addToCart(productId: productId, quantity: quantity);
+      await loadCart();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Update quantity
+  Future<bool> updateQuantity(int cartId, int quantity) async {
+    if (quantity < 1) return false;
+
+    try {
+      await CartService.updateCartItem(cartId: cartId, quantity: quantity);
+
+      // Update local state immediately for better UX
+      final index = _items.indexWhere((item) => item.id == cartId);
+      if (index != -1) {
+        _items[index].quantity = quantity;
+        _calculateTotal();
+        notifyListeners();
       }
 
-      _currentPage = pagination['page'] + 1;
-      _totalPages = pagination['total_pages'];
-      _hasMore = _currentPage <= _totalPages;
-
-      _isLoading = false;
-      notifyListeners();
+      return true;
     } catch (e) {
       _error = e.toString();
-      _isLoading = false;
       notifyListeners();
+      return false;
     }
   }
 
-  // Load product detail
-  Future<void> loadProductDetail(int productId) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
+  // Remove item
+  Future<bool> removeItem(int cartId) async {
     try {
-      _selectedProduct = await ProductService.getProductDetail(productId);
-      _isLoading = false;
+      await CartService.removeFromCart(cartId);
+
+      // Update local state
+      _items.removeWhere((item) => item.id == cartId);
+      _count = _items.length;
+      _calculateTotal();
+      notifyListeners();
+
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Clear cart
+  Future<void> clearCart() async {
+    try {
+      await CartService.clearCart();
+      _items.clear();
+      _total = 0;
+      _count = 0;
       notifyListeners();
     } catch (e) {
       _error = e.toString();
-      _isLoading = false;
       notifyListeners();
     }
   }
 
-  // Search products
-  Future<void> searchProducts(String query) async {
-    await loadProducts(refresh: true, search: query);
-  }
-
-  // Filter by category
-  Future<void> filterByCategory(int categoryId) async {
-    await loadProducts(refresh: true, categoryId: categoryId);
+  // Calculate total locally
+  void _calculateTotal() {
+    _total = _items.fold(0, (sum, item) => sum + item.subtotal);
   }
 
   // Clear error

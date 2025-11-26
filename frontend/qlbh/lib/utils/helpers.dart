@@ -53,14 +53,14 @@ class Helpers {
     }
   }
 
-  // Get payment status text
+  // Get payment status text - ✅ FIX: Đổi 'completed' thành 'paid'
   static String getPaymentStatusText(String status) {
     switch (status) {
       case 'pending':
         return 'Chờ thanh toán';
       case 'processing':
         return 'Đang xử lý';
-      case 'completed':
+      case 'paid': // ✅ FIX: Backend trả về 'paid'
         return 'Đã thanh toán';
       case 'failed':
         return 'Thất bại';

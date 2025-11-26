@@ -6,7 +6,6 @@ import '../services/order_service.dart';
 class OrderProvider with ChangeNotifier {
   List<Order> _orders = [];
   Order? _selectedOrder;
-
   bool _isLoading = false;
   String? _error;
 
@@ -16,30 +15,30 @@ class OrderProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  // Load orders
+  // Load orders - FIX: Sử dụng Future.microtask đúng cách
   Future<void> loadOrders({String? status}) async {
     _isLoading = true;
     _error = null;
-    notifyListeners();
+
+    // Không gọi notifyListeners() ngay lập tức
+    // Chỉ thông báo sau khi đã hoàn thành
 
     try {
       final result = await OrderService.getOrders(status: status);
       _orders = result['orders'];
-
       _isLoading = false;
-      notifyListeners();
+      notifyListeners(); // Chỉ gọi khi đã hoàn thành
     } catch (e) {
       _error = e.toString();
       _isLoading = false;
-      notifyListeners();
+      notifyListeners(); // Chỉ gọi khi đã hoàn thành
     }
   }
 
-  // Load order detail
+  // Load order detail - FIX: Tương tự
   Future<void> loadOrderDetail(int orderId) async {
     _isLoading = true;
     _error = null;
-    notifyListeners();
 
     try {
       _selectedOrder = await OrderService.getOrderDetail(orderId);
@@ -52,7 +51,7 @@ class OrderProvider with ChangeNotifier {
     }
   }
 
-  // Cancel order
+  // Cancel order - FIX: Tương tự
   Future<bool> cancelOrder(int orderId) async {
     try {
       await OrderService.cancelOrder(orderId);
@@ -65,7 +64,6 @@ class OrderProvider with ChangeNotifier {
     }
   }
 
-  // Clear error
   void clearError() {
     _error = null;
     notifyListeners();

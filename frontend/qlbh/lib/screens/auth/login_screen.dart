@@ -7,6 +7,8 @@ import '../../widgets/custom_button.dart';
 import '../../config/theme_config.dart';
 import '../main_screen.dart';
 import 'register_screen.dart';
+// THÊM: Import màn hình Admin Dashboard
+import '../admin/admin_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -41,9 +43,21 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (success) {
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const MainScreen()));
+      // 🎯 LOGIC ĐIỀU HƯỚNG MỚI: Kiểm tra vai trò người dùng
+      final userRole =
+          authProvider.user?.role ?? 'user'; // Lấy role từ AuthProvider
+
+      if (userRole == 'admin') {
+        // Chuyển hướng đến màn hình Admin Dashboard
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+        );
+      } else {
+        // Chuyển hướng đến màn hình chính của người dùng (MainScreen)
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const MainScreen()),
+        );
+      }
     } else {
       Fluttertoast.showToast(
         msg: authProvider.error ?? 'Đăng nhập thất bại',
@@ -52,6 +66,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // ... (phần build widget còn lại)
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -70,7 +85,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   height: 100,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
+                      colors: [
+                        ThemeConfig.primaryColor,
+                        ThemeConfig.secondaryColor,
+                      ],
                     ),
                     borderRadius: BorderRadius.circular(20),
                   ),

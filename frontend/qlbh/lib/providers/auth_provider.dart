@@ -7,16 +7,18 @@ class AuthProvider with ChangeNotifier {
   User? _user;
   bool _isLoading = false;
   String? _error;
+  bool _isInitialized = false;
 
   User? get user => _user;
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isLoggedIn => _user != null;
+  bool get isInitialized => _isInitialized;
 
-  // Initialize (check if logged in)
+  // Initialize (check if logged in) - FIXED
   Future<void> initialize() async {
+    // Không set state ngay lập tức
     _isLoading = true;
-    notifyListeners();
 
     try {
       final isLoggedIn = await AuthService.isLoggedIn();
@@ -28,19 +30,26 @@ class AuthProvider with ChangeNotifier {
         try {
           _user = await AuthService.getProfile();
         } catch (e) {
+          print('Token expired, logging out: $e');
           // If token expired, logout
           await logout();
         }
       }
     } catch (e) {
       _error = e.toString();
+      print('Auth initialization error: $e');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      _isInitialized = true;
+
+      // Sử dụng addPostFrameCallback để tránh lỗi build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
     }
   }
 
-  // Register
+  // Register - FIXED
   Future<bool> register({
     required String email,
     required String password,
@@ -49,7 +58,6 @@ class AuthProvider with ChangeNotifier {
   }) async {
     _isLoading = true;
     _error = null;
-    notifyListeners();
 
     try {
       final response = await AuthService.register(
@@ -61,21 +69,28 @@ class AuthProvider with ChangeNotifier {
 
       _user = User.fromJson(response['user']);
       _isLoading = false;
-      notifyListeners();
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+
       return true;
     } catch (e) {
       _error = e.toString();
       _isLoading = false;
-      notifyListeners();
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+
       return false;
     }
   }
 
-  // Login
+  // Login - FIXED
   Future<bool> login({required String email, required String password}) async {
     _isLoading = true;
     _error = null;
-    notifyListeners();
 
     try {
       final response = await AuthService.login(
@@ -85,24 +100,35 @@ class AuthProvider with ChangeNotifier {
 
       _user = User.fromJson(response['user']);
       _isLoading = false;
-      notifyListeners();
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+
       return true;
     } catch (e) {
       _error = e.toString();
       _isLoading = false;
-      notifyListeners();
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+
       return false;
     }
   }
 
-  // Logout
+  // Logout - FIXED
   Future<void> logout() async {
     await AuthService.logout();
     _user = null;
-    notifyListeners();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
   }
 
-  // Update profile
+  // Update profile - FIXED
   Future<bool> updateProfile({
     String? fullName,
     String? phone,
@@ -110,7 +136,6 @@ class AuthProvider with ChangeNotifier {
   }) async {
     _isLoading = true;
     _error = null;
-    notifyListeners();
 
     try {
       _user = await AuthService.updateProfile(
@@ -119,19 +144,30 @@ class AuthProvider with ChangeNotifier {
         address: address,
       );
       _isLoading = false;
-      notifyListeners();
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+
       return true;
     } catch (e) {
       _error = e.toString();
       _isLoading = false;
-      notifyListeners();
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+
       return false;
     }
   }
 
-  // Clear error
+  // Clear error - FIXED
   void clearError() {
     _error = null;
-    notifyListeners();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
   }
 }
