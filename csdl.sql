@@ -112,20 +112,23 @@
 -- CREATE INDEX idx_cart_user ON cart(user_id);
 -- CREATE INDEX idx_orders_user ON orders(user_id);
 -- CREATE INDEX idx_reviews_product ON reviews(product_id);
-CREATE TABLE payments (
-    id SERIAL PRIMARY KEY,
-    payment_code VARCHAR(50) UNIQUE NOT NULL,
-    order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
-    user_id INTEGER REFERENCES users(id),
-    amount DECIMAL(10, 2) NOT NULL,
-    payment_method VARCHAR(50) NOT NULL, -- momo, vnpay, cod
-    payment_status VARCHAR(50) DEFAULT 'pending', -- pending, processing, completed, failed
-    transaction_id VARCHAR(255),
-    payment_date TIMESTAMP,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- CREATE TABLE payments (
+--     id SERIAL PRIMARY KEY,
+--     payment_code VARCHAR(50) UNIQUE NOT NULL,
+--     order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+--     user_id INTEGER REFERENCES users(id),
+--     amount DECIMAL(10, 2) NOT NULL,
+--     payment_method VARCHAR(50) NOT NULL, -- momo, vnpay, cod
+--     payment_status VARCHAR(50) DEFAULT 'pending', -- pending, processing, completed, failed
+--     transaction_id VARCHAR(255),
+--     payment_date TIMESTAMP,
+--     description TEXT,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- );
 
-CREATE INDEX idx_payments_order ON payments(order_id);
-CREATE INDEX idx_payments_user ON payments(user_id);
-CREATE INDEX idx_payments_code ON payments(payment_code);
+-- CREATE INDEX idx_payments_order ON payments(order_id);
+-- CREATE INDEX idx_payments_user ON payments(user_id);
+-- CREATE INDEX idx_payments_code ON payments(payment_code);
+
+-- Thêm vào database
+ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500);
