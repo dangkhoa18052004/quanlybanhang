@@ -1,15 +1,17 @@
 # backend/app/routes/cart.py
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import current_user, get_jwt_identity
 from app.models import get_db_connection, get_db_cursor
 from app.utils.decorators import token_required
 
 cart_bp = Blueprint('cart', __name__)
 
-@cart_bp.route('/', methods=['GET'])
+@cart_bp.route('', methods=['GET'])
 @token_required
 def get_cart():
     """Lấy giỏ hàng của user"""
+    print(f"[CART] get_cart called for user: {current_user['id']}")
+
     try:
         user_id = get_jwt_identity()
         

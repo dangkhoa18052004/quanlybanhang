@@ -7,9 +7,19 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 
         'postgresql://postgres:13579@localhost:5432/flutter')
     
-    # JWT
-    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
+    # JWT - FIX: Thêm cấu hình JWT đầy đủ
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'qE4MD7n2RzxNV8vaCn3ft4LBt7qg3rbjGyk2oWk_vjY')
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=7)
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+    JWT_TOKEN_LOCATION = ['headers']
+    JWT_HEADER_NAME = 'Authorization'
+    JWT_HEADER_TYPE = 'Bearer'
+    JWT_ALGORITHM = 'HS256'
+    
+    # Tắt các tính năng không cần thiết
+    JWT_COOKIE_CSRF_PROTECT = False
+    JWT_CSRF_IN_COOKIES = False
+    JWT_CSRF_CHECK_FORM = False
     
     # Cloudinary (Upload ảnh)
     CLOUDINARY_CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME')

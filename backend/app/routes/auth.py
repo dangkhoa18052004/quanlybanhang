@@ -39,8 +39,8 @@ def register():
                 
                 user = cur.fetchone()
                 
-                # Tạo access token
-                access_token = create_access_token(identity=user['id'])
+                # FIX: Chuyển identity thành string
+                access_token = create_access_token(identity=str(user['id']))
                 
                 return jsonify({
                     'message': 'Đăng ký thành công',
@@ -78,8 +78,8 @@ def login():
                 if not bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
                     return jsonify({'error': 'Email hoặc mật khẩu không đúng'}), 401
                 
-                # Tạo access token
-                access_token = create_access_token(identity=user['id'])
+                # FIX: Chuyển identity thành string
+                access_token = create_access_token(identity=str(user['id']))
                 
                 # Remove password_hash khỏi response
                 user_data = dict(user)
@@ -99,14 +99,14 @@ def login():
 def get_profile():
     """Lấy thông tin profile"""
     try:
-        user_id = get_jwt_identity()
+        current_user  = get_jwt_identity()
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
                 cur.execute("""
                     SELECT id, email, full_name, phone, address, role
                     FROM users WHERE id = %s
-                """, (user_id,))
+                """, (current_user ,))
                 
                 user = cur.fetchone()
                 

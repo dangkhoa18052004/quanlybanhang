@@ -6,17 +6,24 @@ from app.utils.decorators import token_required, admin_required
 
 orders_bp = Blueprint('orders', __name__)
 
-@orders_bp.route('/', methods=['GET'])
+# backend/app/routes/orders.py
+from flask import Blueprint, request, jsonify
+from app.models import get_db_connection, get_db_cursor
+from app.utils.decorators import token_required
+
+orders_bp = Blueprint('orders', __name__)
+
+@orders_bp.route('', methods=['GET'])
 @token_required
-def get_orders():
+def get_orders(current_user):  
     """Lấy danh sách đơn hàng của user"""
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']  # Đã là integer từ decorator
         
         # Query parameters
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 10))
-        status = request.args.get('status')  # pending, paid, shipping, delivered, cancelled
+        status = request.args.get('status')
         
         offset = (page - 1) * limit
         
@@ -37,7 +44,8 @@ def get_orders():
                     {where_clause}
                 """, params)
                 
-                total = cur.fetchone()['total']
+                total_result = cur.fetchone()
+                total = total_result['total'] if total_result else 0
                 
                 # Get orders
                 cur.execute(f"""
@@ -75,20 +83,21 @@ def get_orders():
                         'page': page,
                         'limit': limit,
                         'total': total,
-                        'total_pages': (total + limit - 1) // limit
+                        'total_pages': (total + limit - 1) // limit if limit > 0 else 0
                     }
                 }), 200
                 
     except Exception as e:
+        print(f"[ORDERS ERROR] {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
 @orders_bp.route('/<int:order_id>', methods=['GET'])
 @token_required
-def get_order_detail(order_id):
+def get_order_detail(current_user, order_id): 
     """Lấy chi tiết đơn hàng"""
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
@@ -127,15 +136,16 @@ def get_order_detail(order_id):
                 return jsonify({'order': result}), 200
                 
     except Exception as e:
+        print(f"[ORDER DETAIL ERROR] {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
 @orders_bp.route('/<int:order_id>/cancel', methods=['POST'])
 @token_required
-def cancel_order(order_id):
-    """Hủy đơn hàng (chỉ được hủy khi status = pending)"""
+def cancel_order(current_user, order_id):  
+    """Hủy đơn hàng"""
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
@@ -190,4 +200,5 @@ def cancel_order(order_id):
                 }), 200
                 
     except Exception as e:
+        print(f"[CANCEL ORDER ERROR] {str(e)}")
         return jsonify({'error': str(e)}), 500
