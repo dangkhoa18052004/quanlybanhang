@@ -8,12 +8,12 @@ cart_bp = Blueprint('cart', __name__)
 
 @cart_bp.route('', methods=['GET'])
 @token_required
-def get_cart():
+def get_cart(current_user):
     """Lấy giỏ hàng của user"""
     print(f"[CART] get_cart called for user: {current_user['id']}")
 
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']  
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
@@ -51,10 +51,10 @@ def get_cart():
 
 @cart_bp.route('/add', methods=['POST'])
 @token_required
-def add_to_cart():
+def add_to_cart(current_user):
     """Thêm sản phẩm vào giỏ hàng"""
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']
         data = request.json
         
         product_id = data.get('product_id')
@@ -129,10 +129,10 @@ def add_to_cart():
 
 @cart_bp.route('/update/<int:cart_id>', methods=['PUT'])
 @token_required
-def update_cart_item(cart_id):
+def update_cart_item(current_user, cart_id):
     """Cập nhật số lượng sản phẩm trong giỏ"""
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']
         data = request.json
         quantity = data.get('quantity')
         
@@ -179,10 +179,10 @@ def update_cart_item(cart_id):
 
 @cart_bp.route('/remove/<int:cart_id>', methods=['DELETE'])
 @token_required
-def remove_from_cart(cart_id):
+def remove_from_cart(current_user,cart_id):
     """Xóa sản phẩm khỏi giỏ hàng"""
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
@@ -205,10 +205,10 @@ def remove_from_cart(cart_id):
 
 @cart_bp.route('/clear', methods=['DELETE'])
 @token_required
-def clear_cart():
+def clear_cart(current_user):
     """Xóa toàn bộ giỏ hàng"""
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:

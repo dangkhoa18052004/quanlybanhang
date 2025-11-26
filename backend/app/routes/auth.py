@@ -20,17 +20,14 @@ def register():
         if not all([email, password, full_name]):
             return jsonify({'error': 'Thiếu thông tin bắt buộc'}), 400
         
-        # Hash password
         password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
-                # Kiểm tra email đã tồn tại
                 cur.execute("SELECT id FROM users WHERE email = %s", (email,))
                 if cur.fetchone():
                     return jsonify({'error': 'Email đã được sử dụng'}), 400
                 
-                # Tạo user mới
                 cur.execute("""
                     INSERT INTO users (email, password_hash, full_name, phone)
                     VALUES (%s, %s, %s, %s)
@@ -39,7 +36,6 @@ def register():
                 
                 user = cur.fetchone()
                 
-                # FIX: Chuyển identity thành string
                 access_token = create_access_token(identity=str(user['id']))
                 
                 return jsonify({
@@ -74,14 +70,11 @@ def login():
                 if not user:
                     return jsonify({'error': 'Email hoặc mật khẩu không đúng'}), 401
                 
-                # Verify password
                 if not bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
                     return jsonify({'error': 'Email hoặc mật khẩu không đúng'}), 401
                 
-                # FIX: Chuyển identity thành string
                 access_token = create_access_token(identity=str(user['id']))
                 
-                # Remove password_hash khỏi response
                 user_data = dict(user)
                 user_data.pop('password_hash')
                 
@@ -96,17 +89,17 @@ def login():
 
 @auth_bp.route('/profile', methods=['GET'])
 @token_required
-def get_profile():
+def get_profile(current_user):  # ✅ FIX: Thêm parameter
     """Lấy thông tin profile"""
     try:
-        current_user  = get_jwt_identity()
+        user_id = current_user['id']  # ✅ FIX: Dùng current_user
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
                 cur.execute("""
                     SELECT id, email, full_name, phone, address, role
                     FROM users WHERE id = %s
-                """, (current_user ,))
+                """, (user_id,))
                 
                 user = cur.fetchone()
                 
@@ -120,10 +113,10 @@ def get_profile():
 
 @auth_bp.route('/profile', methods=['PUT'])
 @token_required
-def update_profile():
+def update_profile(current_user):  # ✅ FIX: Thêm parameter
     """Cập nhật profile"""
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']  # ✅ FIX: Dùng current_user
         data = request.json
         
         full_name = data.get('full_name')
@@ -153,7 +146,7 @@ def update_profile():
     
 @auth_bp.route('/change-password', methods=['POST'])
 @token_required
-def change_password():
+def change_password(current_user):  # ✅ FIX: Thêm parameter
     """
     Đổi mật khẩu
     
@@ -164,7 +157,7 @@ def change_password():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']  # ✅ FIX: Dùng current_user
         data = request.json
         
         old_password = data.get('old_password')
@@ -178,25 +171,21 @@ def change_password():
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
-                # Lấy password hiện tại
                 cur.execute("""
                     SELECT password_hash FROM users WHERE id = %s
                 """, (user_id,))
                 
                 user = cur.fetchone()
                 
-                # Verify old password
                 if not bcrypt.checkpw(old_password.encode('utf-8'), 
                                      user['password_hash'].encode('utf-8')):
                     return jsonify({'error': 'Mật khẩu cũ không đúng'}), 401
                 
-                # Hash new password
                 new_password_hash = bcrypt.hashpw(
                     new_password.encode('utf-8'), 
                     bcrypt.gensalt()
                 ).decode('utf-8')
                 
-                # Update
                 cur.execute("""
                     UPDATE users
                     SET password_hash = %s
@@ -211,36 +200,31 @@ def change_password():
 
 @auth_bp.route('/upload-avatar', methods=['POST'])
 @token_required
-def upload_avatar():
+def upload_avatar(current_user):  # ✅ FIX: Thêm parameter
     """Upload ảnh đại diện"""
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']  # ✅ FIX: Dùng current_user
         
         avatar_file = request.files.get('avatar')
         
         if not avatar_file:
             return jsonify({'error': 'Thiếu file ảnh'}), 400
         
-        # Upload ảnh
         from app.utils.upload_helper import save_upload_file, delete_upload_file
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
-                # Lấy avatar cũ để xóa
                 cur.execute("""
                     SELECT avatar_url FROM users WHERE id = %s
                 """, (user_id,))
                 
                 user = cur.fetchone()
                 
-                # Xóa avatar cũ
                 if user and user.get('avatar_url'):
                     delete_upload_file(user['avatar_url'])
                 
-                # Upload avatar mới
                 avatar_url = save_upload_file(avatar_file, folder='avatars')
                 
-                # Update database
                 cur.execute("""
                     UPDATE users
                     SET avatar_url = %s

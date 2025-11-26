@@ -55,7 +55,7 @@ def get_product_reviews(product_id):
 
 @reviews_bp.route('/create', methods=['POST'])
 @token_required
-def create_review():
+def create_review(current_user):
     """
     Tạo đánh giá cho sản phẩm
     
@@ -68,7 +68,7 @@ def create_review():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']
         data = request.json
         
         product_id = data.get('product_id')
@@ -144,10 +144,10 @@ def create_review():
 
 @reviews_bp.route('/<int:review_id>', methods=['PUT'])
 @token_required
-def update_review(review_id):
+def update_review(current_user,review_id):
     """Cập nhật đánh giá"""
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']
         data = request.json
         
         rating = data.get('rating')
@@ -203,10 +203,10 @@ def update_review(review_id):
 
 @reviews_bp.route('/<int:review_id>', methods=['DELETE'])
 @token_required
-def delete_review(review_id):
+def delete_review(current_user,review_id):
     """Xóa đánh giá"""
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:

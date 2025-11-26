@@ -1,6 +1,6 @@
 # backend/app/routes/payment.py
 from flask import Blueprint, request, jsonify, redirect
-from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import current_user, get_jwt_identity
 from app.models import get_db_connection, get_db_cursor
 from app.utils.decorators import token_required
 from datetime import datetime
@@ -47,7 +47,7 @@ def generate_payment_code():
 # 📝 1. CREATE ORDER & PAYMENT RECORD
 @payment_bp.route('/create-order', methods=['POST'])
 @token_required
-def create_order_and_payment():
+def create_order_and_payment(current_user):
     """
     Tạo đơn hàng và payment record từ giỏ hàng
     
@@ -60,7 +60,7 @@ def create_order_and_payment():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']
         data = request.json
         
         shipping_address = data.get('shipping_address')
@@ -218,7 +218,7 @@ def create_order_and_payment():
 # 💳 2. INITIATE MOMO PAYMENT
 @payment_bp.route('/initiate-momo', methods=['POST'])
 @token_required
-def initiate_momo_payment():
+def initiate_momo_payment(current_user):
     """
     Khởi tạo thanh toán MoMo
     
@@ -228,7 +228,7 @@ def initiate_momo_payment():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']
         data = request.json
         payment_code = data.get('payment_code')
         
@@ -561,10 +561,10 @@ def momo_payment_ipn():
 # 📊 5. CHECK PAYMENT STATUS
 @payment_bp.route('/status/<payment_code>', methods=['GET'])
 @token_required
-def check_payment_status(payment_code):
+def check_payment_status(current_user,payment_code):
     """Kiểm tra trạng thái thanh toán"""
     try:
-        user_id = get_jwt_identity()
+        user_id = current_user['id']
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
