@@ -1,12 +1,12 @@
 // lib/screens/home/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:qlbh/screens/cart/cart_screen.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/cart_provider.dart';
 import '../../config/theme_config.dart';
 import '../../widgets/product_card.dart';
 import 'product_detail_screen.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -150,7 +150,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: const Icon(Icons.shopping_cart_outlined),
                 ),
                 onPressed: () {
-                  // Navigate to cart
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CartScreen()),
+                  );
                 },
               );
             },

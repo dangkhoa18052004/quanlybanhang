@@ -1,5 +1,3 @@
-import 'product.dart';
-
 class CartItem {
   final int id;
   final int productId;

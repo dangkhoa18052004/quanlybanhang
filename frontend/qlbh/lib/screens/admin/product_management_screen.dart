@@ -9,7 +9,7 @@ class ProductManagementScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quản lý Sản phẩm'),
-        backgroundColor: ThemeConfig.primaryColor,
+        backgroundColor: AppTheme.primaryColor,
         actions: <Widget>[
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
@@ -33,7 +33,7 @@ class ProductManagementScreen extends StatelessWidget {
         },
         label: const Text('Làm mới'),
         icon: const Icon(Icons.refresh),
-        backgroundColor: ThemeConfig.primaryColor,
+        backgroundColor: AppTheme.primaryColor,
       ),
     );
   }
@@ -87,7 +87,7 @@ class ProductManagementScreen extends StatelessWidget {
               children: [
                 Text(
                   'Giá: ${product['price']} VNĐ',
-                  style: TextStyle(color: ThemeConfig.accentColor),
+                  style: TextStyle(color: AppTheme.accentColor),
                 ),
                 Text('Tồn kho: ${product['stock']}'),
               ],

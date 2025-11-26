@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
-import '../../config/theme_config.dart';
 import '../main_screen.dart';
 
 class RegisterScreen extends StatefulWidget {

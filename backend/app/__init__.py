@@ -85,6 +85,7 @@ def create_app():
     from app.routes.reviews import reviews_bp
     from app.routes.payment import payment_bp
     from app.routes.admin import admin_bp
+    from app.routes.discount import discount_bp
     
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(products_bp, url_prefix='/api')
@@ -93,6 +94,7 @@ def create_app():
     app.register_blueprint(reviews_bp, url_prefix='/api/reviews')
     app.register_blueprint(payment_bp, url_prefix='/api/payment')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
+    app.register_blueprint(discount_bp, url_prefix='/api/discount')
     
     @app.route('/')
     def index():

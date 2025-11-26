@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:qlbh/screens/cart/cart_screen.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/cart_provider.dart';
 import '../../config/theme_config.dart';
@@ -81,7 +82,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   child: const Icon(Icons.shopping_cart_outlined),
                 ),
                 onPressed: () {
-                  // Navigate to cart
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CartScreen()),
+                  );
                 },
               );
             },

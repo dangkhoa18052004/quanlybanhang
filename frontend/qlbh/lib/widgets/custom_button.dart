@@ -4,7 +4,8 @@ import '../config/theme_config.dart';
 
 class CustomButton extends StatelessWidget {
   final String text;
-  final VoidCallback onPressed;
+  // Sửa lỗi: Thêm dấu ? để chấp nhận null khi nút bị vô hiệu hóa
+  final VoidCallback? onPressed;
   final bool isLoading;
   final bool isOutlined;
   final Color? color;
@@ -13,7 +14,7 @@ class CustomButton extends StatelessWidget {
   const CustomButton({
     Key? key,
     required this.text,
-    required this.onPressed,
+    required this.onPressed, // Bỏ required nếu muốn onPressed là tùy chọn
     this.isLoading = false,
     this.isOutlined = false,
     this.color,
@@ -27,6 +28,7 @@ class CustomButton extends StatelessWidget {
       height: 50,
       child: isOutlined
           ? OutlinedButton(
+              // Cú pháp này đã đúng
               onPressed: isLoading ? null : onPressed,
               style: OutlinedButton.styleFrom(
                 side: BorderSide(
@@ -40,6 +42,7 @@ class CustomButton extends StatelessWidget {
               child: _buildChild(context, outlined: true),
             )
           : ElevatedButton(
+              // Cú pháp này đã đúng
               onPressed: isLoading ? null : onPressed,
               style: ElevatedButton.styleFrom(
                 backgroundColor: color ?? AppTheme.primaryColor,
@@ -60,7 +63,7 @@ class CustomButton extends StatelessWidget {
         child: CircularProgressIndicator(
           strokeWidth: 2,
           valueColor: AlwaysStoppedAnimation<Color>(
-            outlined ? AppTheme.primaryColor : Colors.white,
+            outlined ? color ?? AppTheme.primaryColor : Colors.white,
           ),
         ),
       );
@@ -70,11 +73,19 @@ class CustomButton extends StatelessWidget {
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 20),
+          Icon(
+            icon,
+            size: 20,
+            color: outlined ? color ?? AppTheme.primaryColor : Colors.white,
+          ),
           const SizedBox(width: 8),
           Text(
             text,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: outlined ? color ?? AppTheme.primaryColor : Colors.white,
+            ),
           ),
         ],
       );
@@ -82,7 +93,11 @@ class CustomButton extends StatelessWidget {
 
     return Text(
       text,
-      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      style: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: outlined ? color ?? AppTheme.primaryColor : Colors.white,
+      ),
     );
   }
 }

@@ -31,30 +31,49 @@ class Order {
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
-    return Order(
-      id: json['id'],
-      orderNumber: json['order_number'],
-      subtotal: double.parse(json['subtotal'].toString()),
-      discountAmount: double.parse(json['discount_amount'].toString()),
-      totalAmount: double.parse(json['total_amount'].toString()),
-      discountCode: json['discount_code'],
-      shippingAddress: json['shipping_address'],
-      phone: json['phone'],
-      status: json['status'],
-      paymentStatus: json['payment_status'],
-      paymentMethod: json['payment_method'],
-      createdAt: json['created_at'],
-      items: json['items'] != null
-          ? (json['items'] as List)
-                .map((item) => OrderItem.fromJson(item))
-                .toList()
-          : null,
-    );
+    try {
+      return Order(
+        id: _parseInt(json['id']),
+        orderNumber: json['order_number']?.toString() ?? '',
+        subtotal: _parseDouble(json['subtotal']),
+        discountAmount: _parseDouble(json['discount_amount']),
+        totalAmount: _parseDouble(json['total_amount']),
+        discountCode: json['discount_code']?.toString(),
+        shippingAddress: json['shipping_address']?.toString() ?? '',
+        phone: json['phone']?.toString() ?? '',
+        status: json['status']?.toString() ?? 'pending',
+        paymentStatus: json['payment_status']?.toString() ?? 'pending',
+        paymentMethod: json['payment_method']?.toString() ?? 'cod',
+        createdAt: json['created_at']?.toString() ?? '',
+        items: json['items'] != null
+            ? (json['items'] as List)
+                  .map((item) => OrderItem.fromJson(item))
+                  .toList()
+            : null,
+      );
+    } catch (e) {
+      print('[ORDER PARSE ERROR] $e');
+      print('[ORDER JSON] $json');
+      rethrow;
+    }
+  }
+
+  static int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    return int.tryParse(value.toString()) ?? 0;
+  }
+
+  static double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0.0;
   }
 }
 
 class OrderItem {
-  final int id;
+  final int? id; // ✅ NULLABLE - Backend không trả về!
   final int productId;
   final String productName;
   final String? productImage;
@@ -63,7 +82,7 @@ class OrderItem {
   final double subtotal;
 
   OrderItem({
-    required this.id,
+    this.id, // ✅ NULLABLE
     required this.productId,
     required this.productName,
     this.productImage,
@@ -73,14 +92,21 @@ class OrderItem {
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
-    return OrderItem(
-      id: json['id'],
-      productId: json['product_id'],
-      productName: json['product_name'],
-      productImage: json['product_image'],
-      price: double.parse(json['price'].toString()),
-      quantity: json['quantity'],
-      subtotal: double.parse(json['subtotal'].toString()),
-    );
+    try {
+      return OrderItem(
+        // ✅ ID CÓ THỂ NULL
+        id: json['id'] != null ? Order._parseInt(json['id']) : null,
+        productId: Order._parseInt(json['product_id']),
+        productName: json['product_name']?.toString() ?? '',
+        productImage: json['product_image']?.toString(),
+        price: Order._parseDouble(json['price']),
+        quantity: Order._parseInt(json['quantity']),
+        subtotal: Order._parseDouble(json['subtotal']),
+      );
+    } catch (e) {
+      print('[ORDER ITEM PARSE ERROR] $e');
+      print('[ORDER ITEM JSON] $json');
+      rethrow;
+    }
   }
 }

@@ -2,12 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../providers/order_provider.dart';
 import '../../config/theme_config.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/custom_button.dart';
-import '../reviews/write_review_screen.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final int orderId;
@@ -116,29 +114,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      order.orderNumber,
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.copy, size: 20),
-                                    onPressed: () {
-                                      // Copy order number
-                                      Fluttertoast.showToast(
-                                        msg: 'Đã sao chép mã đơn hàng',
-                                      );
-                                    },
-                                  ),
-                                ],
+                              Text(
+                                order.orderNumber,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               const SizedBox(height: 8),
                               Text(
@@ -154,7 +135,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Status Timeline
+                      // Status
                       Card(
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -162,45 +143,71 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'Trạng thái đơn hàng',
+                                'Trạng thái',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              const SizedBox(height: 16),
-                              _buildStatusTimeline(order.status),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 12),
                               Row(
                                 children: [
-                                  const Text('Thanh toán: '),
+                                  const Text('Đơn hàng: '),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 12,
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: order.paymentStatus == 'paid'
-                                          ? AppTheme.successColor.withOpacity(
-                                              0.1,
-                                            )
-                                          : Colors.orange.withOpacity(0.1),
+                                      color: _getOrderStatusColor(
+                                        order.status,
+                                      ).withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
-                                      Helpers.getPaymentStatusText(
-                                        order.paymentStatus,
-                                      ),
+                                      Helpers.getOrderStatusText(order.status),
                                       style: TextStyle(
-                                        color: order.paymentStatus == 'paid'
-                                            ? AppTheme.successColor
-                                            : Colors.orange,
+                                        color: _getOrderStatusColor(
+                                          order.status,
+                                        ),
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
+                              // ✅ CHỈ HIỂN THỊ PAYMENT STATUS NẾU KHÔNG BỊ HỦY
+                              if (order.status != 'cancelled') ...[
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    const Text('Thanh toán: '),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _getPaymentStatusColor(
+                                          order.paymentStatus,
+                                        ).withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        Helpers.getPaymentStatusText(
+                                          order.paymentStatus,
+                                        ),
+                                        style: TextStyle(
+                                          color: _getPaymentStatusColor(
+                                            order.paymentStatus,
+                                          ),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -236,8 +243,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               const SizedBox(height: 8),
                               _buildInfoRow(
                                 Icons.payment,
-                                'Phương thức',
-                                order.paymentMethod == 'momo' ? 'MoMo' : 'COD',
+                                'Phương thức thanh toán',
+                                order.paymentMethod == 'momo'
+                                    ? 'MoMo'
+                                    : 'Thanh toán khi nhận hàng (COD)',
                               ),
                             ],
                           ),
@@ -255,83 +264,88 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      ...?order.items?.map((item) {
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              children: [
-                                // Product Image
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Container(
-                                    width: 70,
-                                    height: 70,
-                                    color: Colors.grey[200],
+                      if (order.items != null && order.items!.isNotEmpty)
+                        ...order.items!.map((item) {
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
+                                children: [
+                                  // Product Image
+                                  Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[200],
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
                                     child: item.productImage != null
-                                        ? CachedNetworkImage(
-                                            imageUrl:
-                                                'http://10.0.2.2:5000${item.productImage}',
-                                            fit: BoxFit.cover,
-                                            errorWidget:
-                                                (context, url, error) =>
-                                                    const Icon(Icons.image),
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: Image.network(
+                                              'http://10.0.2.2:5000${item.productImage}',
+                                              fit: BoxFit.cover,
+                                              errorBuilder:
+                                                  (context, error, stackTrace) {
+                                                    return const Icon(
+                                                      Icons.image,
+                                                    );
+                                                  },
+                                            ),
                                           )
                                         : const Icon(Icons.image),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
+                                  const SizedBox(width: 12),
 
-                                // Product Info
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.productName,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
+                                  // Product Info
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.productName,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'x${item.quantity}',
-                                        style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 13,
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'x${item.quantity}',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        Helpers.formatCurrency(item.price),
-                                        style: TextStyle(
-                                          color: Colors.grey[700],
-                                          fontSize: 13,
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          Helpers.formatCurrency(item.price),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
 
-                                // Price
-                                Text(
-                                  Helpers.formatCurrency(item.subtotal),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.primaryColor,
-                                    fontSize: 15,
+                                  // Price
+                                  Text(
+                                    Helpers.formatCurrency(item.subtotal),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.primaryColor,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      }).toList(),
+                          );
+                        }).toList(),
                       const SizedBox(height: 16),
 
                       // Payment Summary
@@ -345,19 +359,46 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 Helpers.formatCurrency(order.subtotal),
                               ),
                               const SizedBox(height: 8),
-                              if (order.discountAmount > 0) ...[
+                              if (order.discountAmount > 0)
                                 _buildSummaryRow(
-                                  'Giảm giá (${order.discountCode ?? ""}):',
+                                  'Giảm giá:',
                                   '-${Helpers.formatCurrency(order.discountAmount)}',
-                                  color: AppTheme.successColor,
+                                  textColor: AppTheme.successColor,
                                 ),
+                              if (order.discountAmount > 0)
                                 const SizedBox(height: 8),
-                              ],
-                              _buildSummaryRow(
-                                'Phí vận chuyển:',
-                                'Miễn phí',
-                                color: AppTheme.successColor,
-                              ),
+                              if (order.discountCode != null &&
+                                  order.discountCode!.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text('Mã giảm giá:'),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.successColor
+                                              .withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          order.discountCode!,
+                                          style: const TextStyle(
+                                            color: AppTheme.successColor,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               const Divider(height: 24),
                               _buildSummaryRow(
                                 'Tổng cộng:',
@@ -368,156 +409,39 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 100), // Space for bottom button
                     ],
                   ),
                 ),
               ),
 
-              // Action Buttons
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, -2),
+              // Cancel Button
+              if (order.status == 'pending' && order.paymentStatus != 'paid')
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    child: CustomButton(
+                      text: 'Hủy đơn hàng',
+                      onPressed: _cancelOrder,
+                      isOutlined: true,
+                      color: Colors.red,
                     ),
-                  ],
-                ),
-                child: SafeArea(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Cancel Button (only for pending orders)
-                      if (order.status == 'pending' &&
-                          order.paymentStatus != 'paid')
-                        CustomButton(
-                          text: 'Hủy đơn hàng',
-                          onPressed: _cancelOrder,
-                          isOutlined: true,
-                          color: Colors.red,
-                        ),
-
-                      // Review Button (only for delivered orders)
-                      if (order.status == 'delivered')
-                        CustomButton(
-                          text: 'Đánh giá sản phẩm',
-                          onPressed: () {
-                            // Navigate to review screen for first item
-                            if (order.items != null &&
-                                order.items!.isNotEmpty) {
-                              final firstItem = order.items!.first;
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => WriteReviewScreen(
-                                    productId: firstItem.productId,
-                                    orderId: order.id,
-                                    productName: firstItem.productName,
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          icon: Icons.rate_review,
-                        ),
-
-                      // Contact Support Button
-                      if (order.status != 'cancelled')
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Fluttertoast.showToast(
-                                msg: 'Chức năng đang phát triển',
-                              );
-                            },
-                            icon: const Icon(Icons.headset_mic),
-                            label: const Text('Liên hệ hỗ trợ'),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(double.infinity, 50),
-                            ),
-                          ),
-                        ),
-                    ],
                   ),
                 ),
-              ),
             ],
           );
         },
       ),
-    );
-  }
-
-  Widget _buildStatusTimeline(String currentStatus) {
-    final statuses = [
-      {'key': 'pending', 'label': 'Chờ xác nhận', 'icon': Icons.schedule},
-      {'key': 'confirmed', 'label': 'Đã xác nhận', 'icon': Icons.check_circle},
-      {'key': 'shipping', 'label': 'Đang giao', 'icon': Icons.local_shipping},
-      {'key': 'delivered', 'label': 'Đã giao', 'icon': Icons.done_all},
-    ];
-
-    int currentIndex = statuses.indexWhere((s) => s['key'] == currentStatus);
-    if (currentStatus == 'cancelled') currentIndex = -1;
-
-    return Column(
-      children: List.generate(statuses.length, (index) {
-        final status = statuses[index];
-        final isCompleted = index <= currentIndex;
-        final isCurrent = index == currentIndex;
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Column(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: isCompleted
-                        ? AppTheme.primaryColor
-                        : Colors.grey[300],
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    status['icon'] as IconData,
-                    color: isCompleted ? Colors.white : Colors.grey[600],
-                    size: 20,
-                  ),
-                ),
-                if (index < statuses.length - 1)
-                  Container(
-                    width: 2,
-                    height: 40,
-                    color: isCompleted
-                        ? AppTheme.primaryColor
-                        : Colors.grey[300],
-                  ),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 8),
-                child: Text(
-                  status['label'] as String,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                    color: isCompleted
-                        ? AppTheme.textPrimaryColor
-                        : Colors.grey[600],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      }),
     );
   }
 
@@ -554,7 +478,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     String label,
     String value, {
     bool isTotal = false,
-    Color? color,
+    Color? textColor,
   }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -571,10 +495,46 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           style: TextStyle(
             fontSize: isTotal ? 18 : 14,
             fontWeight: isTotal ? FontWeight.bold : FontWeight.w600,
-            color: color ?? (isTotal ? AppTheme.primaryColor : null),
+            color: textColor ?? (isTotal ? AppTheme.primaryColor : null),
           ),
         ),
       ],
     );
+  }
+
+  Color _getOrderStatusColor(String status) {
+    switch (status) {
+      case 'pending':
+        return Colors.orange;
+      case 'confirmed':
+        return Colors.blue;
+      case 'shipping':
+        return Colors.purple;
+      case 'delivered':
+        return AppTheme.successColor;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Color _getPaymentStatusColor(String status) {
+    switch (status) {
+      case 'pending':
+        return Colors.orange;
+      case 'processing':
+        return Colors.blue;
+      case 'paid':
+        return AppTheme.successColor;
+      case 'failed':
+        return Colors.red;
+      case 'cancelled':
+        return Colors.red;
+      case 'refunded':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
   }
 }

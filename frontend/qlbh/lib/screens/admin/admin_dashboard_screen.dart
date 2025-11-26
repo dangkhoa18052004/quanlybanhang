@@ -11,7 +11,7 @@ class AdminDashboardScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Admin Dashboard'),
-        backgroundColor: ThemeConfig.primaryColor,
+        backgroundColor: AppTheme.primaryColor,
         automaticallyImplyLeading:
             false, // Thường không có nút Back trên Dashboard
       ),
@@ -70,7 +70,7 @@ class AdminDashboardScreen extends StatelessWidget {
       elevation: 2.0,
       margin: const EdgeInsets.only(bottom: 12.0),
       child: ListTile(
-        leading: Icon(icon, color: ThemeConfig.primaryColor, size: 30),
+        leading: Icon(icon, color: AppTheme.primaryColor, size: 30),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),

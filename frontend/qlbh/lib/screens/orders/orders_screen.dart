@@ -16,6 +16,8 @@ class OrdersScreen extends StatefulWidget {
 class _OrdersScreenState extends State<OrdersScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   final List<String> _statuses = [
     'all',
@@ -23,13 +25,16 @@ class _OrdersScreenState extends State<OrdersScreen>
     'confirmed',
     'shipping',
     'delivered',
+    'cancelled', // ✅ THÊM CANCELLED TAB
   ];
+
   final List<String> _statusLabels = [
     'Tất cả',
     'Chờ xác nhận',
     'Đã xác nhận',
     'Đang giao',
     'Đã giao',
+    'Đã hủy', // ✅ THÊM CANCELLED TAB
   ];
 
   @override
@@ -48,6 +53,7 @@ class _OrdersScreenState extends State<OrdersScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -60,18 +66,78 @@ class _OrdersScreenState extends State<OrdersScreen>
     );
   }
 
+  // ✅ SEARCH ORDERS BY ORDER NUMBER
+  List<dynamic> _getFilteredOrders(List<dynamic> orders) {
+    if (_searchQuery.isEmpty) return orders;
+
+    return orders.where((order) {
+      final orderNumber = order.orderNumber.toLowerCase();
+      final query = _searchQuery.toLowerCase();
+      return orderNumber.contains(query);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Đơn hàng của tôi'),
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          indicatorColor: AppTheme.primaryColor,
-          labelColor: AppTheme.primaryColor,
-          unselectedLabelColor: Colors.grey,
-          tabs: _statusLabels.map((label) => Tab(text: label)).toList(),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(100),
+          child: Column(
+            children: [
+              // ✅ SEARCH BAR
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Tìm kiếm theo mã đơn hàng...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setState(() {
+                                _searchController.clear();
+                                _searchQuery = '';
+                              });
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                    });
+                  },
+                ),
+              ),
+
+              // TAB BAR
+              TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                indicatorColor: AppTheme.primaryColor,
+                labelColor: AppTheme.primaryColor,
+                unselectedLabelColor: Colors.grey,
+                tabs: _statusLabels.map((label) => Tab(text: label)).toList(),
+              ),
+            ],
+          ),
         ),
       ),
       body: TabBarView(
@@ -108,7 +174,10 @@ class _OrdersScreenState extends State<OrdersScreen>
           );
         }
 
-        if (provider.orders.isEmpty) {
+        // ✅ FILTER ORDERS BY SEARCH QUERY
+        final filteredOrders = _getFilteredOrders(provider.orders);
+
+        if (filteredOrders.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -120,7 +189,9 @@ class _OrdersScreenState extends State<OrdersScreen>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Chưa có đơn hàng',
+                  _searchQuery.isNotEmpty
+                      ? 'Không tìm thấy đơn hàng'
+                      : 'Chưa có đơn hàng',
                   style: TextStyle(fontSize: 18, color: Colors.grey[600]),
                 ),
               ],
@@ -132,9 +203,9 @@ class _OrdersScreenState extends State<OrdersScreen>
           onRefresh: _loadOrders,
           child: ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: provider.orders.length,
+            itemCount: filteredOrders.length,
             itemBuilder: (context, index) {
-              final order = provider.orders[index];
+              final order = filteredOrders[index];
               return _buildOrderCard(order);
             },
           ),
@@ -165,11 +236,13 @@ class _OrdersScreenState extends State<OrdersScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    order.orderNumber,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                  Expanded(
+                    child: Text(
+                      order.orderNumber,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
                   Text(
@@ -187,11 +260,14 @@ class _OrdersScreenState extends State<OrdersScreen>
                     Helpers.getOrderStatusText(order.status),
                     _getStatusColor(order.status),
                   ),
-                  const SizedBox(width: 8),
-                  _buildStatusBadge(
-                    Helpers.getPaymentStatusText(order.paymentStatus),
-                    _getPaymentStatusColor(order.paymentStatus),
-                  ),
+                  // ✅ CHỈ HIỂN THỊ PAYMENT STATUS NẾU KHÔNG BỊ HỦY
+                  if (order.status != 'cancelled') ...[
+                    const SizedBox(width: 8),
+                    _buildStatusBadge(
+                      Helpers.getPaymentStatusText(order.paymentStatus),
+                      _getPaymentStatusColor(order.paymentStatus),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 12),

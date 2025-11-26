@@ -245,66 +245,67 @@ class ProfileScreen extends StatelessWidget {
               },
             ),
 
-            const Divider(height: 32),
+            // const Divider(height: 32),
 
-            _buildSection('Khác'),
-            _buildMenuItem(
-              context,
-              icon: Icons.notifications_outlined,
-              title: 'Thông báo',
-              trailing: Switch(
-                value: true,
-                onChanged: (value) {
-                  // Toggle notifications
-                },
-              ),
-            ),
-            _buildMenuItem(
-              context,
-              icon: Icons.language,
-              title: 'Ngôn ngữ',
-              subtitle: 'Tiếng Việt',
-              onTap: () {
-                // Show language picker
-              },
-            ),
-            _buildMenuItem(
-              context,
-              icon: Icons.dark_mode_outlined,
-              title: 'Giao diện tối',
-              trailing: Switch(
-                value: false,
-                onChanged: (value) {
-                  // Toggle dark mode
-                },
-              ),
-            ),
-            _buildMenuItem(
-              context,
-              icon: Icons.help_outline,
-              title: 'Trợ giúp & Hỗ trợ',
-              onTap: () {
-                // Navigate to help
-              },
-            ),
-            _buildMenuItem(
-              context,
-              icon: Icons.privacy_tip_outlined,
-              title: 'Chính sách & Điều khoản',
-              onTap: () {
-                // Navigate to policies
-              },
-            ),
-            _buildMenuItem(
-              context,
-              icon: Icons.info_outline,
-              title: 'Về chúng tôi',
-              onTap: () {
-                // Navigate to about
-              },
-            ),
-
-            const Divider(height: 32),
+            // _buildSection('Khác'),
+            // _buildMenuItem(
+            //   context,
+            //   icon: Icons.notifications_outlined,
+            //   title: 'Thông báo',
+            //   onTap: () {},
+            //   trailing: Switch(
+            //     value: true,
+            //     onChanged: (value) {
+            //       // Toggle notifications
+            //     },
+            //   ),
+            // ),
+            // _buildMenuItem(
+            //   context,
+            //   icon: Icons.language,
+            //   title: 'Ngôn ngữ',
+            //   subtitle: 'Tiếng Việt',
+            //   onTap: () {
+            //     // Show language picker
+            //   },
+            // ),
+            // _buildMenuItem(
+            //   context,
+            //   icon: Icons.dark_mode_outlined,
+            //   title: 'Giao diện tối',
+            //   onTap: () {},
+            //   trailing: Switch(
+            //     value: false,
+            //     onChanged: (value) {
+            //       // Toggle dark mode
+            //     },
+            //   ),
+            // ),
+            // _buildMenuItem(
+            //   context,
+            //   icon: Icons.help_outline,
+            //   title: 'Trợ giúp & Hỗ trợ',
+            //   onTap: () {
+            //     // Navigate to help
+            //   },
+            // ),
+            // _buildMenuItem(
+            //   context,
+            //   icon: Icons.privacy_tip_outlined,
+            //   title: 'Chính sách & Điều khoản',
+            //   onTap: () {
+            //     // Navigate to policies
+            //   },
+            // ),
+            // _buildMenuItem(
+            //   context,
+            //   icon: Icons.info_outline,
+            //   title: 'Về chúng tôi',
+            //   onTap: () {
+            //     // Navigate to about
+            //   },
+            // ),
+            // const Divider(height: 32),
 
             // Logout
             _buildMenuItem(
@@ -319,11 +320,11 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Version
-            Text(
-              'Version 1.0.0',
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 32),
+            // Text(
+            //   'Version 1.0.0',
+            //   style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            // ),
+            // const SizedBox(height: 32),
           ],
         ),
       ),
