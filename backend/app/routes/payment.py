@@ -15,7 +15,6 @@ from ..models import get_db_connection, get_db_cursor
 
 payment_bp = Blueprint('payment', __name__)
 
-
 NGROK_URL = os.getenv('NGROK_URL', 'https://anika-unfinical-kala.ngrok-free.dev')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 
@@ -27,7 +26,6 @@ MOMO_ENDPOINT = "https://test-payment.momo.vn/v2/gateway/api/create"
 # Dùng Ngrok URL cho Callback và IPN
 MOMO_RETURN_URL = f"{NGROK_URL}/api/payment/momo-return"
 MOMO_NOTIFY_URL = f"{NGROK_URL}/api/payment/momo-notify"
-
 
 def generate_momo_signature(raw_signature, secret_key):
     """Tạo HMAC SHA256 signature cho MoMo"""
@@ -108,7 +106,6 @@ def create_order_with_payment(current_user):
                         return jsonify({'error': 'Mã giảm giá không tồn tại'}), 400
                     
                     # Validate discount
-                    from datetime import datetime
                     now = datetime.now()
                     
                     if not discount['is_active']:
@@ -156,7 +153,6 @@ def create_order_with_payment(current_user):
                         }), 400
                 
                 # Generate order number
-                import time
                 order_number = f"ORD{int(time.time())}"
                 
                 # Create order
@@ -212,7 +208,7 @@ def create_order_with_payment(current_user):
                 
                 payment = dict(cur.fetchone())
                 
-                # TRACK DISCOUNT USAGE
+                # TRACK DISCOUNT USAGE - FIXED VARIABLE NAMES
                 if discount_id:
                     cur.execute("""
                         INSERT INTO discount_code_usage (
@@ -240,11 +236,8 @@ def create_order_with_payment(current_user):
                 
     except Exception as e:
         print(f"[CREATE ORDER ERROR] {str(e)}")
-        import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500    
-    
-
+        return jsonify({'error': str(e)}), 500
 
 ## 2. Khởi tạo Thanh toán MoMo QR
 

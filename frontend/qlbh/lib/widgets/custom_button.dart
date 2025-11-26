@@ -1,10 +1,11 @@
 // lib/widgets/custom_button.dart
+
 import 'package:flutter/material.dart';
 import '../config/theme_config.dart';
 
 class CustomButton extends StatelessWidget {
   final String text;
-  // Sửa lỗi: Thêm dấu ? để chấp nhận null khi nút bị vô hiệu hóa
+  // SỬA LỖI: Thêm dấu ? để chấp nhận null.
   final VoidCallback? onPressed;
   final bool isLoading;
   final bool isOutlined;
@@ -14,7 +15,8 @@ class CustomButton extends StatelessWidget {
   const CustomButton({
     Key? key,
     required this.text,
-    required this.onPressed, // Bỏ required nếu muốn onPressed là tùy chọn
+    // Đã thay đổi thành nullable
+    required this.onPressed,
     this.isLoading = false,
     this.isOutlined = false,
     this.color,
@@ -23,13 +25,15 @@ class CustomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Logic: Nếu isLoading là true thì onPressed là null, nếu không thì là giá trị được truyền vào
+    final finalOnPressed = isLoading ? null : onPressed;
+
     return SizedBox(
       width: double.infinity,
       height: 50,
       child: isOutlined
           ? OutlinedButton(
-              // Cú pháp này đã đúng
-              onPressed: isLoading ? null : onPressed,
+              onPressed: finalOnPressed, // Sử dụng giá trị đã tính
               style: OutlinedButton.styleFrom(
                 side: BorderSide(
                   color: color ?? AppTheme.primaryColor,
@@ -42,8 +46,7 @@ class CustomButton extends StatelessWidget {
               child: _buildChild(context, outlined: true),
             )
           : ElevatedButton(
-              // Cú pháp này đã đúng
-              onPressed: isLoading ? null : onPressed,
+              onPressed: finalOnPressed, // Sử dụng giá trị đã tính
               style: ElevatedButton.styleFrom(
                 backgroundColor: color ?? AppTheme.primaryColor,
                 shape: RoundedRectangleBorder(
@@ -56,6 +59,7 @@ class CustomButton extends StatelessWidget {
   }
 
   Widget _buildChild(BuildContext context, {bool outlined = false}) {
+    // ... (Giữ nguyên phần còn lại của _buildChild, đảm bảo màu sắc và icon hiển thị đúng)
     if (isLoading) {
       return SizedBox(
         height: 20,
@@ -68,7 +72,8 @@ class CustomButton extends StatelessWidget {
         ),
       );
     }
-
+    // ...
+    // Giữ nguyên phần hiển thị Text/Row nếu không isLoading
     if (icon != null) {
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,

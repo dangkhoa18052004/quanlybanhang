@@ -4,7 +4,7 @@ from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
 import os
 
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/ecommerce_db')
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:13579@localhost:5432/flutter')
 
 @contextmanager
 def get_db_connection():

@@ -42,7 +42,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
-  // ✅ Apply discount code
+  /// Apply discount code
   Future<void> _applyDiscountCode() async {
     final code = _discountCodeController.text.trim();
     if (code.isEmpty) {
@@ -66,7 +66,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         setState(() {
           _appliedDiscountCode = code;
           // Đảm bảo kiểu dữ liệu là double
-          _discountAmount = response['discount']['discount_amount'].toDouble();
+          _discountAmount = (response['discount']['discount_amount'] as num)
+              .toDouble();
         });
 
         Fluttertoast.showToast(
@@ -87,7 +88,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  // ✅ Remove discount code
+  /// Remove discount code
   void _removeDiscountCode() {
     setState(() {
       _appliedDiscountCode = null;
@@ -100,7 +101,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  // ✅ Show discount codes screen
+  /// Show discount codes screen
   void _showDiscountCodes() {
     Navigator.push(
       context,
@@ -115,17 +116,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
+  /// Process order
   Future<void> _processOrder() async {
-    // ✅ Prevent multiple clicks
+    // Prevent multiple clicks
     if (_isProcessing) {
       print('[CHECKOUT] Already processing, ignoring click');
       return;
     }
 
-    // ✅ Validate form
+    // Validate form
     if (!_formKey.currentState!.validate()) return;
 
-    // ✅ Check cart not empty
+    // Check cart not empty
     final cart = context.read<CartProvider>();
     if (cart.items.isEmpty) {
       Fluttertoast.showToast(
@@ -157,7 +159,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (_paymentMethod == 'momo') {
         print('[CHECKOUT] Initiating MoMo payment...');
 
-        // 2. Initiate MoMo payment - SỬA LỖI TÊN PHƯƠNG THỨC: initiateMoMo -> initiateMoMoQR
+        // 2. Initiate MoMo payment
         final momoResponse = await PaymentService.initiateMoMoQR(
           paymentCode: paymentCode,
         );
@@ -182,7 +184,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         if (!mounted) return;
 
         if (result == true) {
-          // ✅ Payment successful (trang web MoMo redirect về success)
+          // Payment successful (trang web MoMo redirect về success)
           print('[CHECKOUT] Payment successful!');
 
           // Clear cart
@@ -203,7 +205,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             (route) => route.isFirst,
           );
         } else {
-          // ❌ Payment failed or cancelled
+          // Payment failed or cancelled
           print('[CHECKOUT] Payment failed/cancelled');
 
           Fluttertoast.showToast(
@@ -235,7 +237,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     } catch (e) {
       print('[CHECKOUT ERROR] $e');
 
-      // ✅ Better error messages
+      // Better error messages
       String errorMsg = e.toString();
       if (errorMsg.contains('Exception: ')) {
         errorMsg = errorMsg.replaceAll('Exception: ', '');
@@ -370,7 +372,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             decoration: InputDecoration(
                               labelText: 'Nhập mã giảm giá',
                               prefixIcon: const Icon(Icons.discount),
-                              // ✅ Show clear button if discount applied
+                              // Show clear button if discount applied
                               suffixIcon: _appliedDiscountCode != null
                                   ? IconButton(
                                       icon: const Icon(
@@ -410,7 +412,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       ],
                     ),
 
-                    // ✅ Show applied discount info
+                    // Show applied discount info
                     if (_appliedDiscountCode != null) ...[
                       const SizedBox(height: 8),
                       Container(
@@ -468,7 +470,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             const SizedBox(height: 8),
                             _buildSummaryRow('Phí vận chuyển:', 'Miễn phí'),
 
-                            // ✅ Show discount if applied
+                            // Show discount if applied
                             if (_discountAmount > 0) ...[
                               const SizedBox(height: 8),
                               _buildSummaryRow(
@@ -579,7 +581,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 }
 
-// ✅ MOMO WEBVIEW WITH ORDER NUMBER
+/// MoMo Payment WebView
 class MoMoPaymentWebView extends StatefulWidget {
   final String paymentUrl;
   final String paymentCode;
@@ -613,17 +615,14 @@ class _MoMoPaymentWebViewState extends State<MoMoPaymentWebView> {
           onPageStarted: (url) {
             print('[MOMO WEBVIEW] Page started: $url');
 
-            // ✅ Check payment result: MoMo redirect về backend của bạn, sau đó backend redirect về FRONTEND_URL/payment/success/failed
-            // Vì backend của bạn redirect về một URL chứa 'success' hoặc 'failed', ta kiểm tra nó
+            // Check payment result
             if (url.contains('payment/success') ||
                 url.contains('resultCode=0')) {
               print('[MOMO WEBVIEW] Payment SUCCESS');
-              // Trả về true để thông báo thanh toán thành công
               Navigator.pop(context, true);
             } else if (url.contains('payment/failed') ||
                 url.contains('resultCode=')) {
-              print('[MOMO WEBVIEW] Payment FAILED/CANCELLED');
-              // Trả về false để thông báo thất bại/hủy
+              print('[MOMO WEBVIEW] Payment FAILED');
               Navigator.pop(context, false);
             }
           },
@@ -675,8 +674,7 @@ class _MoMoPaymentWebViewState extends State<MoMoPaymentWebView> {
                   TextButton(
                     onPressed: () {
                       Navigator.pop(context); // Close dialog
-                      // Trả về false khi hủy
-                      Navigator.pop(context, false);
+                      Navigator.pop(context, false); // Close webview
                     },
                     child: const Text(
                       'Hủy',
