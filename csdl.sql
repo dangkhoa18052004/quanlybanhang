@@ -1,0 +1,114 @@
+-- database_schema.sql
+
+-- Bảng Users
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    phone VARCHAR(20),
+    address TEXT,
+    role VARCHAR(20) DEFAULT 'customer', -- 'customer' or 'admin'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bảng Categories
+CREATE TABLE categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    image_url VARCHAR(500)
+);
+
+-- Bảng Products
+CREATE TABLE products (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    price DECIMAL(10, 2) NOT NULL,
+    stock_quantity INTEGER DEFAULT 0,
+    category_id INTEGER REFERENCES categories(id),
+    image_url VARCHAR(500),
+    average_rating DECIMAL(2, 1) DEFAULT 0.0,
+    total_reviews INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bảng Product Images (nhiều ảnh cho 1 sản phẩm)
+CREATE TABLE product_images (
+    id SERIAL PRIMARY KEY,
+    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    image_url VARCHAR(500) NOT NULL,
+    is_primary BOOLEAN DEFAULT FALSE
+);
+
+-- Bảng Cart
+CREATE TABLE cart (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, product_id)
+);
+
+-- Bảng Discount Codes
+CREATE TABLE discount_codes (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    discount_percent INTEGER NOT NULL, -- 10 = 10%
+    min_order_value DECIMAL(10, 2) DEFAULT 0,
+    max_discount DECIMAL(10, 2),
+    valid_from TIMESTAMP,
+    valid_until TIMESTAMP,
+    usage_limit INTEGER,
+    used_count INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Bảng Orders
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    order_number VARCHAR(50) UNIQUE NOT NULL,
+    subtotal DECIMAL(10, 2) NOT NULL,
+    discount_amount DECIMAL(10, 2) DEFAULT 0,
+    total_amount DECIMAL(10, 2) NOT NULL,
+    discount_code VARCHAR(50),
+    shipping_address TEXT NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending', -- pending, paid, shipping, delivered, cancelled
+    payment_method VARCHAR(50), -- momo, vnpay, cod
+    payment_status VARCHAR(50) DEFAULT 'pending', -- pending, paid, failed
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bảng Order Items
+CREATE TABLE order_items (
+    id SERIAL PRIMARY KEY,
+    order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES products(id),
+    product_name VARCHAR(255) NOT NULL,
+    product_image VARCHAR(500),
+    price DECIMAL(10, 2) NOT NULL,
+    quantity INTEGER NOT NULL,
+    subtotal DECIMAL(10, 2) NOT NULL
+);
+
+-- Bảng Reviews
+CREATE TABLE reviews (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    order_id INTEGER REFERENCES orders(id),
+    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, product_id, order_id)
+);
+
+-- Index để tối ưu performance
+CREATE INDEX idx_products_category ON products(category_id);
+CREATE INDEX idx_cart_user ON cart(user_id);
+CREATE INDEX idx_orders_user ON orders(user_id);
+CREATE INDEX idx_reviews_product ON reviews(product_id);
