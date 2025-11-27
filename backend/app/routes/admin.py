@@ -7,6 +7,10 @@ from app.utils.simple_image_helper import process_image_for_db
 
 admin_bp = Blueprint('admin', __name__)
 
+# =======================================================
+# PRODUCTS MANAGEMENT
+# =======================================================
+
 @admin_bp.route('/products', methods=['POST'])
 @admin_required
 def create_product():
@@ -553,7 +557,7 @@ def update_user_role(user_id):
 
 
 # =======================================================
-# DASHBOARD STATS (CHỈ MỘT LẦN)
+# DASHBOARD STATS
 # =======================================================
 
 @admin_bp.route('/dashboard/stats', methods=['GET'])
@@ -632,359 +636,222 @@ def get_dashboard_stats():
                 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-@admin_bp.route('/products', methods=['POST'])
+    
+@admin_bp.route('/users', methods=['POST'])
 @admin_required
-def create_product():
-    """Tạo sản phẩm mới - lưu ảnh trực tiếp vào products"""
+def create_user():
+    """Tạo người dùng mới (chỉ admin)"""
     try:
-        # Nhận dữ liệu qua form-data
-        name = request.form.get('name')
-        description = request.form.get('description')
-        price = request.form.get('price')
-        stock_quantity = request.form.get('stock_quantity', 0)
-        category_id = request.form.get('category_id')
+        data = request.json
+        email = data.get('email')
+        password = data.get('password')
+        full_name = data.get('full_name')
+        phone = data.get('phone')
+        address = data.get('address')
+        role = data.get('role', 'customer')
         
-        if not all([name, price, category_id]):
+        if not all([email, password, full_name]):
             return jsonify({'error': 'Thiếu thông tin bắt buộc'}), 400
         
-        image_file = request.files.get('image')
-        image_data = None
-        content_type = None
-        
-        if image_file:
-            # Xử lý và lưu ảnh
-            image_data, content_type = process_image_for_db(image_file)
+        if role not in ['customer', 'admin']:
+            return jsonify({'error': 'Role không hợp lệ'}), 400
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
+                # Kiểm tra email đã tồn tại
+                cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+                if cur.fetchone():
+                    return jsonify({'error': 'Email đã tồn tại'}), 400
+                
+                # Hash password
+                from werkzeug.security import generate_password_hash
+                hashed_password = generate_password_hash(password)
+                
+                # ✅ SỬA: Dùng password_hash thay vì password
                 cur.execute("""
-                    INSERT INTO products (
-                        name, description, price, stock_quantity, 
-                        category_id, image_url, image_content_type
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id, name, price
-                """, (name, description, price, stock_quantity, category_id, 
-                      image_data, content_type))
+                    INSERT INTO users (email, password_hash, full_name, phone, address, role)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING id, email, full_name, phone, address, role, created_at
+                """, (email, hashed_password, full_name, phone, address, role))
                 
-                product = cur.fetchone()
-                
-                result = dict(product)
-                # Trả về ID thay vì binary data
-                result['has_image'] = image_data is not None
+                user = cur.fetchone()
                 
                 return jsonify({
-                    'message': 'Tạo sản phẩm thành công',
-                    'product': result
+                    'message': 'Tạo người dùng thành công',
+                    'user': dict(user)
                 }), 201
                 
     except Exception as e:
-        print(f"[CREATE PRODUCT ERROR] {str(e)}")
+        print(f"[CREATE USER ERROR] {str(e)}")
         return jsonify({'error': str(e)}), 500
-
-
-@admin_bp.route('/products/<int:product_id>', methods=['PUT'])
+    
+# ✅ CẬP NHẬT THÔNG TIN NGƯỜI DÙNG
+@admin_bp.route('/users/<int:user_id>', methods=['PUT'])
 @admin_required
-def update_product(product_id):
-    """Cập nhật sản phẩm"""
+def update_user_info(user_id):
+    """Cập nhật thông tin người dùng"""
     try:
-        name = request.form.get('name')
-        description = request.form.get('description')
-        price = request.form.get('price')
-        stock_quantity = request.form.get('stock_quantity')
-        category_id = request.form.get('category_id')
-        image_file = request.files.get('image')
+        data = request.json
+        
+        update_fields = []
+        params = []
+        
+        if 'full_name' in data:
+            update_fields.append("full_name = %s")
+            params.append(data['full_name'])
+        
+        if 'phone' in data:
+            update_fields.append("phone = %s")
+            params.append(data['phone'])
+        
+        if 'address' in data:
+            update_fields.append("address = %s")
+            params.append(data['address'])
+        
+        if 'email' in data:
+            update_fields.append("email = %s")
+            params.append(data['email'])
+        
+        if not update_fields:
+            return jsonify({'error': 'Không có dữ liệu để cập nhật'}), 400
+        
+        params.append(user_id)
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
-                # Kiểm tra sản phẩm tồn tại
-                cur.execute("SELECT id FROM products WHERE id = %s", (product_id,))
-                
-                if not cur.fetchone():
-                    return jsonify({'error': 'Sản phẩm không tồn tại'}), 404
-                
-                # Xử lý ảnh mới nếu có
-                image_data = None
-                content_type = None
-                
-                if image_file:
-                    image_data, content_type = process_image_for_db(image_file)
-                
-                # Build dynamic UPDATE query
-                update_fields = []
-                params = []
-                
-                if name:
-                    update_fields.append("name = %s")
-                    params.append(name)
-                
-                if description:
-                    update_fields.append("description = %s")
-                    params.append(description)
-                
-                if price:
-                    update_fields.append("price = %s")
-                    params.append(price)
-                
-                if stock_quantity is not None:
-                    update_fields.append("stock_quantity = %s")
-                    params.append(stock_quantity)
-                
-                if category_id:
-                    update_fields.append("category_id = %s")
-                    params.append(category_id)
-                
-                if image_data:
-                    update_fields.append("image_url = %s")
-                    params.append(image_data)
-                    update_fields.append("image_content_type = %s")
-                    params.append(content_type)
-                
-                if not update_fields:
-                    return jsonify({'error': 'Không có dữ liệu để cập nhật'}), 400
-                
-                params.append(product_id)
-                
                 query = f"""
-                    UPDATE products
+                    UPDATE users
                     SET {', '.join(update_fields)}
                     WHERE id = %s
-                    RETURNING id, name, price
+                    RETURNING id, email, full_name, phone, address, role, created_at
                 """
                 
                 cur.execute(query, params)
-                product = cur.fetchone()
+                user = cur.fetchone()
+                
+                if not user:
+                    return jsonify({'error': 'Người dùng không tồn tại'}), 404
                 
                 return jsonify({
-                    'message': 'Cập nhật sản phẩm thành công',
-                    'product': dict(product)
+                    'message': 'Cập nhật thành công',
+                    'user': dict(user)
                 }), 200
                 
     except Exception as e:
-        print(f"[UPDATE PRODUCT ERROR] {str(e)}")
+        print(f"[UPDATE USER ERROR] {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
-@admin_bp.route('/products/<int:product_id>', methods=['DELETE'])
+# ✅ XÓA NGƯỜI DÙNG
+@admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
 @admin_required
-def delete_product(product_id):
-    """Xóa sản phẩm"""
+def delete_user(user_id):
+    """Xóa người dùng"""
     try:
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
+                # Kiểm tra xem có đơn hàng không
                 cur.execute("""
-                    DELETE FROM products 
-                    WHERE id = %s
-                    RETURNING id
-                """, (product_id,))
+                    SELECT COUNT(*) as count FROM orders WHERE user_id = %s
+                """, (user_id,))
                 
-                deleted = cur.fetchone()
+                order_count = cur.fetchone()['count']
                 
-                if not deleted:
-                    return jsonify({'error': 'Sản phẩm không tồn tại'}), 404
-                
-                return jsonify({'message': 'Xóa sản phẩm thành công'}), 200
-                
-    except Exception as e:
-        print(f"[DELETE PRODUCT ERROR] {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-
-# =======================================================
-# CATEGORY MANAGEMENT
-# =======================================================
-
-@admin_bp.route('/categories', methods=['GET'])
-@admin_required
-def get_all_categories():
-    """Lấy tất cả categories"""
-    try:
-        with get_db_connection() as conn:
-            with get_db_cursor(conn) as cur:
-                cur.execute("""
-                    SELECT 
-                        c.id,
-                        c.name,
-                        c.description,
-                        COUNT(p.id) as product_count
-                    FROM categories c
-                    LEFT JOIN products p ON c.id = p.category_id
-                    GROUP BY c.id
-                    ORDER BY c.name
-                """)
-                
-                categories = cur.fetchall()
-                
-                return jsonify({
-                    'categories': [dict(cat) for cat in categories]
-                }), 200
-                
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@admin_bp.route('/categories', methods=['POST'])
-@admin_required
-def create_category():
-    """Tạo category mới"""
-    try:
-        name = request.form.get('name')
-        description = request.form.get('description')
-        
-        if not name:
-            return jsonify({'error': 'Thiếu tên danh mục'}), 400
-        
-        with get_db_connection() as conn:
-            with get_db_cursor(conn) as cur:
-                cur.execute("SELECT id FROM categories WHERE name = %s", (name,))
-                if cur.fetchone():
-                    return jsonify({'error': 'Tên danh mục đã tồn tại'}), 400
-                
-                cur.execute("""
-                    INSERT INTO categories (name, description)
-                    VALUES (%s, %s)
-                    RETURNING id, name, description
-                """, (name, description))
-                
-                category = cur.fetchone()
-                
-                return jsonify({
-                    'message': 'Tạo danh mục thành công',
-                    'category': dict(category)
-                }), 201
-                
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@admin_bp.route('/categories/<int:category_id>', methods=['PUT'])
-@admin_required
-def update_category(category_id):
-    """Cập nhật category"""
-    try:
-        name = request.form.get('name')
-        description = request.form.get('description')
-        
-        with get_db_connection() as conn:
-            with get_db_cursor(conn) as cur:
-                cur.execute("SELECT id FROM categories WHERE id = %s", (category_id,))
-                
-                if not cur.fetchone():
-                    return jsonify({'error': 'Danh mục không tồn tại'}), 404
-                
-                cur.execute("""
-                    UPDATE categories
-                    SET name = COALESCE(%s, name),
-                        description = COALESCE(%s, description)
-                    WHERE id = %s
-                    RETURNING id, name, description
-                """, (name, description, category_id))
-                
-                category = cur.fetchone()
-                
-                return jsonify({
-                    'message': 'Cập nhật danh mục thành công',
-                    'category': dict(category)
-                }), 200
-                
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@admin_bp.route('/categories/<int:category_id>', methods=['DELETE'])
-@admin_required
-def delete_category(category_id):
-    """Xóa category"""
-    try:
-        with get_db_connection() as conn:
-            with get_db_cursor(conn) as cur:
-                # Kiểm tra có sản phẩm không
-                cur.execute("""
-                    SELECT COUNT(*) as count FROM products WHERE category_id = %s
-                """, (category_id,))
-                
-                count = cur.fetchone()['count']
-                
-                if count > 0:
+                if order_count > 0:
                     return jsonify({
-                        'error': f'Không thể xóa danh mục có {count} sản phẩm'
+                        'error': f'Không thể xóa người dùng có {order_count} đơn hàng'
                     }), 400
                 
+                # Xóa user
                 cur.execute("""
-                    DELETE FROM categories 
+                    DELETE FROM users
                     WHERE id = %s
                     RETURNING id
-                """, (category_id,))
+                """, (user_id,))
                 
                 deleted = cur.fetchone()
                 
                 if not deleted:
-                    return jsonify({'error': 'Danh mục không tồn tại'}), 404
+                    return jsonify({'error': 'Người dùng không tồn tại'}), 404
                 
-                return jsonify({'message': 'Xóa danh mục thành công'}), 200
+                return jsonify({'message': 'Xóa người dùng thành công'}), 200
                 
     except Exception as e:
+        print(f"[DELETE USER ERROR] {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
-# =======================================================
-# DASHBOARD STATS
-# =======================================================
-
-@admin_bp.route('/dashboard/stats', methods=['GET'])
+# ✅ RESET MẬT KHẨU (Tùy chọn)
+@admin_bp.route('/users/<int:user_id>/password', methods=['PUT'])
 @admin_required
-def get_dashboard_stats():
-    """Lấy thống kê tổng quan"""
+def reset_user_password(user_id):
+    """Reset mật khẩu người dùng"""
     try:
+        data = request.json
+        new_password = data.get('new_password')
+        
+        if not new_password or len(new_password) < 6:
+            return jsonify({'error': 'Mật khẩu phải có ít nhất 6 ký tự'}), 400
+        
+        from werkzeug.security import generate_password_hash
+        hashed_password = generate_password_hash(new_password)
+        
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
-                # Tổng doanh thu
+                # ✅ SỬA: Dùng password_hash thay vì password
                 cur.execute("""
-                    SELECT COALESCE(SUM(total_amount), 0) as total_revenue
-                    FROM orders
-                    WHERE payment_status = 'paid'
-                """)
-                revenue = cur.fetchone()['total_revenue']
+                    UPDATE users
+                    SET password_hash = %s
+                    WHERE id = %s
+                    RETURNING id, email
+                """, (hashed_password, user_id))
                 
-                # Tổng đơn hàng
-                cur.execute("SELECT COUNT(*) as total FROM orders")
-                total_orders = cur.fetchone()['total']
+                user = cur.fetchone()
                 
-                # Đơn hàng pending
-                cur.execute("""
-                    SELECT COUNT(*) as total FROM orders WHERE status = 'pending'
-                """)
-                pending_orders = cur.fetchone()['total']
-                
-                # Tổng sản phẩm
-                cur.execute("SELECT COUNT(*) as total FROM products")
-                total_products = cur.fetchone()['total']
-                
-                # Tổng users
-                cur.execute("""
-                    SELECT COUNT(*) as total FROM users WHERE role = 'customer'
-                """)
-                total_customers = cur.fetchone()['total']
-                
-                # Sản phẩm sắp hết hàng
-                cur.execute("""
-                    SELECT COUNT(*) as total FROM products WHERE stock_quantity < 10
-                """)
-                low_stock = cur.fetchone()['total']
+                if not user:
+                    return jsonify({'error': 'Người dùng không tồn tại'}), 404
                 
                 return jsonify({
-                    'stats': {
-                        'total_revenue': float(revenue),
-                        'total_orders': total_orders,
-                        'pending_orders': pending_orders,
-                        'total_products': total_products,
-                        'total_customers': total_customers,
-                        'low_stock_products': low_stock
-                    },
-                    'daily_revenue': [],
-                    'top_products': []
+                    'message': 'Reset mật khẩu thành công'
+                }), 200
+                
+    except Exception as e:
+        print(f"[RESET PASSWORD ERROR] {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
+
+@admin_bp.route('/orders/<int:order_id>/payment-status', methods=['PUT'])
+@admin_required
+def update_payment_status(order_id):
+    """Cập nhật trạng thái thanh toán"""
+    try:
+        data = request.json
+        payment_status = data.get('payment_status')
+        
+        valid_statuses = ['pending', 'processing', 'paid', 'failed']
+        
+        if payment_status not in valid_statuses:
+            return jsonify({'error': 'Payment status không hợp lệ'}), 400
+        
+        with get_db_connection() as conn:
+            with get_db_cursor(conn) as cur:
+                cur.execute("""
+                    UPDATE orders
+                    SET payment_status = %s
+                    WHERE id = %s
+                    RETURNING id, order_number, payment_status
+                """, (payment_status, order_id))
+                
+                order = cur.fetchone()
+                
+                if not order:
+                    return jsonify({'error': 'Đơn hàng không tồn tại'}), 404
+                
+                return jsonify({
+                    'message': f'Cập nhật trạng thái thanh toán thành công',
+                    'order': dict(order)
                 }), 200
                 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+

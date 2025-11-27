@@ -1,7 +1,9 @@
 # backend/app/routes/products.py
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from app.models import get_db_connection, get_db_cursor
 from app.utils.decorators import admin_required, token_required
+import io
+
 products_bp = Blueprint('products', __name__)
 
 @products_bp.route('/categories', methods=['GET'])
@@ -11,7 +13,11 @@ def get_categories():
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
                 cur.execute("""
-                    SELECT c.*, COUNT(p.id) as product_count
+                    SELECT 
+                        c.id,
+                        c.name,
+                        c.description,
+                        COUNT(p.id) as product_count
                     FROM categories c
                     LEFT JOIN products p ON c.id = p.category_id
                     GROUP BY c.id
@@ -25,7 +31,9 @@ def get_categories():
                 }), 200
                 
     except Exception as e:
+        print(f"[GET CATEGORIES ERROR] {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 @products_bp.route('/products', methods=['GET'])
 def get_products():
@@ -33,10 +41,10 @@ def get_products():
     try:
         # Query parameters
         page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 20))
+        limit = int(request.args.get('limit', 50))
         category_id = request.args.get('category_id')
         search = request.args.get('search', '').strip()
-        sort_by = request.args.get('sort_by', 'newest')  # newest, price_asc, price_desc, rating
+        sort_by = request.args.get('sort_by', 'newest')
         
         offset = (page - 1) * limit
         
@@ -59,7 +67,7 @@ def get_products():
             'newest': 'p.created_at DESC',
             'price_asc': 'p.price ASC',
             'price_desc': 'p.price DESC',
-            'rating': 'p.average_rating DESC'
+            'name': 'p.name ASC'
         }.get(sort_by, 'p.created_at DESC')
         
         with get_db_connection() as conn:
@@ -73,16 +81,18 @@ def get_products():
                 
                 total = cur.fetchone()['total']
                 
-                # Get products
+                # Get products - KHÔNG lấy image_url (binary data)
                 cur.execute(f"""
                     SELECT 
-                        p.*,
+                        p.id,
+                        p.name,
+                        p.description,
+                        p.price,
+                        p.stock_quantity,
+                        p.category_id,
+                        p.created_at,
                         c.name as category_name,
-                        (
-                            SELECT json_agg(image_url)
-                            FROM product_images
-                            WHERE product_id = p.id
-                        ) as images
+                        CASE WHEN p.image_url IS NOT NULL THEN true ELSE false END as has_image
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
                     {where_sql}
@@ -92,8 +102,19 @@ def get_products():
                 
                 products = cur.fetchall()
                 
+                # Convert sang list và thêm image URL
+                products_list = []
+                for product in products:
+                    product_dict = dict(product)
+                    # Thêm URL để lấy ảnh
+                    if product_dict['has_image']:
+                        product_dict['image_url'] = f'/products/{product_dict["id"]}/image'
+                    else:
+                        product_dict['image_url'] = None
+                    products_list.append(product_dict)
+                
                 return jsonify({
-                    'products': [dict(p) for p in products],
+                    'products': products_list,
                     'pagination': {
                         'page': page,
                         'limit': limit,
@@ -103,7 +124,9 @@ def get_products():
                 }), 200
                 
     except Exception as e:
+        print(f"[GET PRODUCTS ERROR] {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 @products_bp.route('/products/<int:product_id>', methods=['GET'])
 def get_product_detail(product_id):
@@ -111,16 +134,18 @@ def get_product_detail(product_id):
     try:
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
-                # Get product
+                # Get product - KHÔNG lấy image_url (binary data)
                 cur.execute("""
                     SELECT 
-                        p.*,
+                        p.id,
+                        p.name,
+                        p.description,
+                        p.price,
+                        p.stock_quantity,
+                        p.category_id,
+                        p.created_at,
                         c.name as category_name,
-                        (
-                            SELECT json_agg(image_url)
-                            FROM product_images
-                            WHERE product_id = p.id
-                        ) as images
+                        CASE WHEN p.image_url IS NOT NULL THEN true ELSE false END as has_image
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
                     WHERE p.id = %s
@@ -131,33 +156,57 @@ def get_product_detail(product_id):
                 if not product:
                     return jsonify({'error': 'Sản phẩm không tồn tại'}), 404
                 
-                # Get reviews
-                cur.execute("""
-                    SELECT 
-                        r.*,
-                        u.full_name as user_name
-                    FROM reviews r
-                    JOIN users u ON r.user_id = u.id
-                    WHERE r.product_id = %s
-                    ORDER BY r.created_at DESC
-                    LIMIT 10
-                """, (product_id,))
-                
-                reviews = cur.fetchall()
-                
                 result = dict(product)
-                result['reviews'] = [dict(r) for r in reviews]
+                
+                # Thêm URL để lấy ảnh
+                if result['has_image']:
+                    result['image_url'] = f'/products/{result["id"]}/image'
+                else:
+                    result['image_url'] = None
                 
                 return jsonify({'product': result}), 200
                 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500.
-    
+        print(f"[GET PRODUCT DETAIL ERROR] {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@products_bp.route('/products/<int:product_id>/image', methods=['GET'])
+def get_product_image(product_id):
+    """Lấy ảnh sản phẩm"""
+    try:
+        with get_db_connection() as conn:
+            with get_db_cursor(conn) as cur:
+                cur.execute("""
+                    SELECT image_url, image_content_type
+                    FROM products
+                    WHERE id = %s
+                """, (product_id,))
+                
+                result = cur.fetchone()
+                
+                if not result or not result['image_url']:
+                    return jsonify({'error': 'Ảnh không tồn tại'}), 404
+                
+                # Convert memoryview to bytes
+                image_data = bytes(result['image_url'])
+                content_type = result['image_content_type'] or 'image/jpeg'
+                
+                return send_file(
+                    io.BytesIO(image_data),
+                    mimetype=content_type,
+                    as_attachment=False,
+                    download_name=f'product_{product_id}.jpg'
+                )
+                
+    except Exception as e:
+        print(f"[GET IMAGE ERROR] {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 
 @products_bp.route('/products/<int:product_id>', methods=['PUT', 'PATCH'])
-@token_required
 @admin_required
-def update_product(product_id, current_user):
+def update_product(product_id):
     """Cập nhật sản phẩm (chỉ admin)"""
     try:
         data = request.json
@@ -202,26 +251,23 @@ def update_product(product_id, current_user):
                 if not updated_product:
                     return jsonify({'error': 'Không tìm thấy sản phẩm để cập nhật'}), 404
                 
-                # Logic phức tạp hơn: Cập nhật hình ảnh (cần xóa cũ và chèn mới nếu cần)
-                # ... 
-                
-                return jsonify({'message': 'Cập nhật sản phẩm thành công', 'product': dict(updated_product)}), 200
+                return jsonify({
+                    'message': 'Cập nhật sản phẩm thành công', 
+                    'product': dict(updated_product)
+                }), 200
                 
     except Exception as e:
+        print(f"[UPDATE PRODUCT ERROR] {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
 @products_bp.route('/products/<int:product_id>', methods=['DELETE'])
-@token_required
 @admin_required
-def delete_product(product_id, current_user):
+def delete_product(product_id):
     """Xóa sản phẩm (chỉ admin)"""
     try:
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
-                # Cần xóa các bản ghi liên quan (product_images) trước
-                cur.execute("DELETE FROM product_images WHERE product_id = %s", (product_id,))
-                
                 # Xóa sản phẩm
                 cur.execute("""
                     DELETE FROM products 
@@ -229,10 +275,13 @@ def delete_product(product_id, current_user):
                     RETURNING id
                 """, (product_id,))
                 
-                if cur.rowcount == 0:
+                deleted = cur.fetchone()
+                
+                if not deleted:
                     return jsonify({'error': 'Không tìm thấy sản phẩm để xóa'}), 404
                 
                 return jsonify({'message': 'Xóa sản phẩm thành công'}), 200
                 
     except Exception as e:
+        print(f"[DELETE PRODUCT ERROR] {str(e)}")
         return jsonify({'error': str(e)}), 500

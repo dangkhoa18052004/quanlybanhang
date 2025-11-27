@@ -1,7 +1,7 @@
 
 ## File: backend/app/routes/discount.py
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, Flask, request, jsonify
 from app.utils.db import get_db_connection, get_db_cursor
 from app.utils.decorators import token_required, admin_required
 from datetime import datetime
@@ -19,7 +19,7 @@ def validate_discount_code(current_user):
     try:
         data = request.get_json()
         code = data.get('code', '').strip().upper()
-        order_total = float(data.get('order_total', 0))  # ← Đảm bảo là float
+        order_total = float(data.get('order_total', 0))
         
         if not code:
             return jsonify({'error': 'Vui lòng nhập mã giảm giá'}), 400
@@ -46,7 +46,6 @@ def validate_discount_code(current_user):
                     return jsonify({'error': 'Mã giảm giá đã ngừng hoạt động'}), 400
                 
                 # Check date range
-                from datetime import datetime
                 now = datetime.now()
                 if discount['start_date'] and discount['start_date'] > now:
                     return jsonify({'error': 'Mã giảm giá chưa có hiệu lực'}), 400
@@ -58,26 +57,19 @@ def validate_discount_code(current_user):
                 if discount['usage_limit'] and discount['used_count'] >= discount['usage_limit']:
                     return jsonify({'error': 'Mã giảm giá đã hết lượt sử dụng'}), 400
                 
-                # ✅ FIX: Convert min_order_value to float
-                min_order_value = float(discount['min_order_value']) if discount['min_order_value'] else 0
-                
                 # Check minimum order value
-                if order_total < min_order_value:
+                if order_total < discount['min_order_value']:
                     return jsonify({
-                        'error': f'Đơn hàng phải từ {min_order_value:,.0f}đ trở lên'
+                        'error': f'Đơn hàng phải từ {discount["min_order_value"]:,.0f}đ trở lên'
                     }), 400
-                
-                # ✅ FIX: Convert all Decimal to float before calculation
-                discount_value = float(discount['discount_value'])
-                max_discount_amount = float(discount['max_discount_amount']) if discount['max_discount_amount'] else None
                 
                 # Calculate discount amount
                 if discount['discount_type'] == 'percentage':
-                    discount_amount = order_total * (discount_value / 100)
-                    if max_discount_amount:
-                        discount_amount = min(discount_amount, max_discount_amount)
+                    discount_amount = order_total * (discount['discount_value'] / 100)
+                    if discount['max_discount_amount']:
+                        discount_amount = min(discount_amount, discount['max_discount_amount'])
                 else:  # fixed
-                    discount_amount = discount_value
+                    discount_amount = discount['discount_value']
                 
                 # Ensure discount doesn't exceed order total
                 discount_amount = min(discount_amount, order_total)
@@ -89,17 +81,16 @@ def validate_discount_code(current_user):
                         'code': discount['code'],
                         'description': discount['description'],
                         'discount_type': discount['discount_type'],
-                        'discount_value': discount_value,
-                        'discount_amount': discount_amount,
-                        'final_total': order_total - discount_amount
+                        'discount_value': float(discount['discount_value']),
+                        'discount_amount': float(discount_amount),
+                        'final_total': float(order_total - discount_amount)
                     }
                 }), 200
                 
     except Exception as e:
         print(f"[VALIDATE DISCOUNT ERROR] {str(e)}")
-        import traceback
-        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
 
 @discount_bp.route('/available', methods=['GET'])
 @token_required
@@ -108,12 +99,21 @@ def get_available_codes(current_user):
     try:
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
+                # ✅ FIX: Không dùng VIEW, query với điều kiện
                 cur.execute("""
                     SELECT 
-                        code, description, discount_type, discount_value,
-                        min_order_value, max_discount_amount, end_date
-                    FROM active_discount_codes
-                    WHERE is_currently_valid = TRUE
+                        code, 
+                        description, 
+                        discount_type, 
+                        discount_value,
+                        min_order_value, 
+                        max_discount_amount, 
+                        end_date
+                    FROM discount_codes
+                    WHERE is_active = TRUE
+                        AND (start_date IS NULL OR start_date <= NOW())
+                        AND (end_date IS NULL OR end_date >= NOW())
+                        AND (usage_limit IS NULL OR used_count < usage_limit)
                     ORDER BY discount_value DESC
                 """)
                 
@@ -124,7 +124,6 @@ def get_available_codes(current_user):
     except Exception as e:
         print(f"[GET AVAILABLE CODES ERROR] {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 # ============================================================
 # ADMIN ENDPOINTS
@@ -138,14 +137,16 @@ def get_all_discount_codes(current_user):
     try:
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
+                # ✅ FIX: Không dùng VIEW, query trực tiếp
                 cur.execute("""
                     SELECT 
                         dc.*,
-                        dus.total_uses,
-                        dus.total_discount_given,
-                        dus.unique_users
+                        COUNT(o.id) as total_uses,
+                        COALESCE(SUM(o.discount_amount), 0) as total_discount_given,
+                        COUNT(DISTINCT o.user_id) as unique_users
                     FROM discount_codes dc
-                    LEFT JOIN discount_usage_stats dus ON dc.id = dus.id
+                    LEFT JOIN orders o ON UPPER(o.discount_code) = UPPER(dc.code)
+                    GROUP BY dc.id
                     ORDER BY dc.created_at DESC
                 """)
                 
@@ -313,9 +314,17 @@ def get_discount_stats(current_user):
                 
                 overall = dict(cur.fetchone())
                 
-                # Top performing codes
+                # ✅ FIX: Top performing codes - query trực tiếp
                 cur.execute("""
-                    SELECT * FROM discount_usage_stats
+                    SELECT 
+                        dc.id,
+                        dc.code,
+                        COUNT(o.id) as total_uses,
+                        COALESCE(SUM(o.discount_amount), 0) as total_discount_given,
+                        COUNT(DISTINCT o.user_id) as unique_users
+                    FROM discount_codes dc
+                    LEFT JOIN orders o ON UPPER(o.discount_code) = UPPER(dc.code)
+                    GROUP BY dc.id, dc.code
                     ORDER BY total_discount_given DESC
                     LIMIT 10
                 """)
@@ -331,20 +340,4 @@ def get_discount_stats(current_user):
         print(f"[GET DISCOUNT STATS ERROR] {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-## Register Blueprint in __init__.py:
 
-# backend/app/__init__.py
-
-from app.routes.discount import discount_bp
-
-# ... existing code ...
-
-def create_app():
-    app = Flask(__name__)
-    
-    # ... existing blueprints ...
-    
-    # Register discount blueprint
-    app.register_blueprint(discount_bp, url_prefix='/api/discount')
-    
-    return app
