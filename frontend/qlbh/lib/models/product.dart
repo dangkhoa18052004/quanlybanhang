@@ -1,4 +1,6 @@
 // lib/models/product.dart
+import '../config/api_config.dart';
+
 class Product {
   final int id;
   final String name;
@@ -8,6 +10,7 @@ class Product {
   final int? categoryId;
   final String? categoryName;
   final String? imageUrl;
+  final bool hasImage;
   final double? averageRating;
   final int? totalReviews;
   final List<String>? images;
@@ -21,6 +24,7 @@ class Product {
     this.categoryId,
     this.categoryName,
     this.imageUrl,
+    this.hasImage = false,
     this.averageRating,
     this.totalReviews,
     this.images,
@@ -36,6 +40,7 @@ class Product {
       categoryId: json['category_id'],
       categoryName: json['category_name'],
       imageUrl: json['image_url'],
+      hasImage: json['has_image'] ?? false,
       averageRating: json['average_rating'] != null
           ? double.parse(json['average_rating'].toString())
           : null,
@@ -44,9 +49,29 @@ class Product {
     );
   }
 
+  // ✅ QUAN TRỌNG: Helper để lấy full URL ảnh
+  String? get fullImageUrl {
+    if (!hasImage || imageUrl == null || imageUrl!.isEmpty) {
+      return null;
+    }
+
+    // Nếu imageUrl đã là full URL (http/https)
+    if (imageUrl!.startsWith('http')) {
+      return imageUrl;
+    }
+
+    // Nếu imageUrl là relative path như "/products/1/image"
+    // Cần ghép với ApiConfig.baseUrl
+    // ApiConfig.baseUrl = "http://127.0.0.1:5000/api"
+    // imageUrl = "/products/1/image"
+    // Result = "http://127.0.0.1:5000/api/products/1/image"
+    return '${ApiConfig.baseUrl}$imageUrl';
+  }
+
   String get displayImage {
-    if (imageUrl != null && imageUrl!.isNotEmpty) {
-      return imageUrl!;
+    final fullUrl = fullImageUrl;
+    if (fullUrl != null && fullUrl.isNotEmpty) {
+      return fullUrl;
     }
     if (images != null && images!.isNotEmpty) {
       return images!.first;

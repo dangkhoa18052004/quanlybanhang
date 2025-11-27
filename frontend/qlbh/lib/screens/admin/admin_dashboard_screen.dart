@@ -1,14 +1,17 @@
 // lib/screens/admin/admin_dashboard_screen.dart
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:qlbh/screens/auth/login_screen.dart';
+import 'package:qlbh/services/admin_service.dart';
 import '../../config/theme_config.dart';
-import '../../services/admin_service.dart';
 import '../../utils/helpers.dart';
 import 'product_management_screen.dart';
 import 'category_management_screen.dart';
 import 'order_management_screen.dart';
 import 'user_management_screen.dart';
 import 'discount_management_screen.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -26,6 +29,42 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void initState() {
     super.initState();
     _loadStats();
+  }
+
+  void _logout() async {
+    // Thêm hộp thoại xác nhận (Tùy chọn)
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Đăng xuất Admin'),
+        content: const Text('Bạn có chắc muốn đăng xuất tài khoản quản trị?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Đăng xuất', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+      await authProvider.logout();
+
+      if (context.mounted) {
+        // ✅ THÊM LOGIC BUỘC CHUYỂN HƯỚNG
+        // Xóa tất cả các màn hình (route) trước đó và chuyển đến LoginScreen
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    }
   }
 
   Future<void> _loadStats() async {
@@ -53,8 +92,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Admin Dashboard'),
+        backgroundColor: AppTheme.primaryColor, // Thêm màu cho đẹp hơn
+        foregroundColor: Colors.white,
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadStats),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadStats,
+            tooltip: 'Làm mới',
+          ),
+          // ✅ THÊM NÚT ĐĂNG XUẤT
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _logout, // Gọi hàm _logout
+            tooltip: 'Đăng xuất',
+          ),
         ],
       ),
       body: _isLoading

@@ -5,6 +5,7 @@ import '../config/api_config.dart';
 import '../models/product.dart';
 import '../models/category.dart';
 import '../models/user.dart';
+import '../models/discount_code.dart';
 import 'package:http/http.dart' as http;
 
 class AdminService {
@@ -26,7 +27,6 @@ class AdminService {
     if (productId == null) {
       return '';
     }
-    // Image được serve từ endpoint /api/images/products/{product_id}
     return '${ApiConfig.baseUrl}/images/products/$productId';
   }
 
@@ -286,6 +286,289 @@ class AdminService {
     }
   }
 
+  static Future<Map<String, dynamic>> createUser({
+    required String email,
+    required String password,
+    required String fullName,
+    String? phone,
+    String? address,
+    String role = 'customer',
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Chưa đăng nhập');
+
+      final response = await http.post(
+        Uri.parse('$_adminBase/users'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+          'full_name': fullName,
+          'phone': phone,
+          'address': address,
+          'role': role,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? 'Tạo người dùng thất bại');
+      }
+    } catch (e) {
+      throw Exception('Lỗi tạo người dùng: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateUser({
+    required int userId,
+    String? fullName,
+    String? phone,
+    String? address,
+    String? email,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Chưa đăng nhập');
+
+      final body = <String, dynamic>{};
+      if (fullName != null) body['full_name'] = fullName;
+      if (phone != null) body['phone'] = phone;
+      if (address != null) body['address'] = address;
+      if (email != null) body['email'] = email;
+
+      final response = await http.put(
+        Uri.parse('$_adminBase/users/$userId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? 'Cập nhật thất bại');
+      }
+    } catch (e) {
+      throw Exception('Lỗi cập nhật: $e');
+    }
+  }
+
+  static Future<void> deleteUser(int userId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Chưa đăng nhập');
+
+      final response = await http.delete(
+        Uri.parse('$_adminBase/users/$userId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode != 200) {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? 'Xóa người dùng thất bại');
+      }
+    } catch (e) {
+      throw Exception('Lỗi xóa người dùng: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> resetUserPassword({
+    required int userId,
+    required String newPassword,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Chưa đăng nhập');
+
+      final response = await http.put(
+        Uri.parse('$_adminBase/users/$userId/password'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'new_password': newPassword}),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? 'Reset mật khẩu thất bại');
+      }
+    } catch (e) {
+      throw Exception('Lỗi reset mật khẩu: $e');
+    }
+  }
+
+  // ==================== DISCOUNT CODE MANAGEMENT ====================
+
+  static Future<List<DiscountCode>> getAllDiscountCodes() async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Chưa đăng nhập');
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/discount'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final List<dynamic> codesJson = json['codes'];
+        return codesJson.map((json) => DiscountCode.fromJson(json)).toList();
+      } else {
+        throw Exception('Lỗi tải mã giảm giá');
+      }
+    } catch (e) {
+      throw Exception('Lỗi: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> createDiscountCode({
+    required String code,
+    required String discountType,
+    required double discountValue,
+    String? description,
+    double? minOrderValue,
+    double? maxDiscountAmount,
+    int? usageLimit,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Chưa đăng nhập');
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/discount'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'code': code.toUpperCase(),
+          'discount_type': discountType,
+          'discount_value': discountValue,
+          'description': description,
+          'min_order_value': minOrderValue,
+          'max_discount_amount': maxDiscountAmount,
+          'usage_limit': usageLimit,
+          'start_date': startDate?.toIso8601String(),
+          'end_date': endDate?.toIso8601String(),
+          'is_active': true,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? 'Tạo mã giảm giá thất bại');
+      }
+    } catch (e) {
+      throw Exception('Lỗi: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateDiscountCode({
+    required int discountId,
+    String? description,
+    String? discountType,
+    double? discountValue,
+    double? minOrderValue,
+    double? maxDiscountAmount,
+    int? usageLimit,
+    DateTime? startDate,
+    DateTime? endDate,
+    bool? isActive,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Chưa đăng nhập');
+
+      final body = <String, dynamic>{};
+      if (description != null) body['description'] = description;
+      if (discountType != null) body['discount_type'] = discountType;
+      if (discountValue != null) body['discount_value'] = discountValue;
+      if (minOrderValue != null) body['min_order_value'] = minOrderValue;
+      if (maxDiscountAmount != null)
+        body['max_discount_amount'] = maxDiscountAmount;
+      if (usageLimit != null) body['usage_limit'] = usageLimit;
+      if (startDate != null) body['start_date'] = startDate.toIso8601String();
+      if (endDate != null) body['end_date'] = endDate.toIso8601String();
+      if (isActive != null) body['is_active'] = isActive;
+
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/discount/$discountId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? 'Cập nhật thất bại');
+      }
+    } catch (e) {
+      throw Exception('Lỗi: $e');
+    }
+  }
+
+  static Future<void> deleteDiscountCode(int discountId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Chưa đăng nhập');
+
+      final response = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}/discount/$discountId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode != 200) {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? 'Xóa mã giảm giá thất bại');
+      }
+    } catch (e) {
+      throw Exception('Lỗi: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getDiscountStats() async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Chưa đăng nhập');
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/discount/stats'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Lỗi tải thống kê');
+      }
+    } catch (e) {
+      throw Exception('Lỗi: $e');
+    }
+  }
+
   // ==================== DASHBOARD STATS ====================
 
   static Future<Map<String, dynamic>> getDashboardStats() async {
@@ -304,6 +587,122 @@ class AdminService {
       return jsonDecode(response.body);
     } else {
       throw Exception('Failed to load dashboard stats');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getAllOrders({
+    int page = 1,
+    int limit = 20,
+    String? status,
+    String? paymentStatus,
+    String? search,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Chưa đăng nhập');
+
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      if (status != null) queryParams['status'] = status;
+      if (paymentStatus != null) queryParams['payment_status'] = paymentStatus;
+      if (search != null && search.isNotEmpty) queryParams['search'] = search;
+
+      final uri = Uri.parse(
+        '$_adminBase/orders',
+      ).replace(queryParameters: queryParams);
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Lỗi tải đơn hàng');
+      }
+    } catch (e) {
+      throw Exception('Lỗi: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getOrderDetail(int orderId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Chưa đăng nhập');
+
+      final response = await http.get(
+        Uri.parse('$_adminBase/orders/$orderId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Lỗi tải chi tiết đơn hàng');
+      }
+    } catch (e) {
+      throw Exception('Lỗi: $e');
+    }
+  }
+
+  static Future<void> updateOrderStatus({
+    required int orderId,
+    required String status,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Chưa đăng nhập');
+
+      final response = await http.put(
+        Uri.parse('$_adminBase/orders/$orderId/status'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'status': status}),
+      );
+
+      if (response.statusCode != 200) {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? 'Cập nhật trạng thái thất bại');
+      }
+    } catch (e) {
+      throw Exception('Lỗi: $e');
+    }
+  }
+
+  static Future<void> updatePaymentStatus({
+    required int orderId,
+    required String paymentStatus,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('Chưa đăng nhập');
+
+      final response = await http.put(
+        Uri.parse('$_adminBase/orders/$orderId/payment-status'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'payment_status': paymentStatus}),
+      );
+
+      if (response.statusCode != 200) {
+        final error = jsonDecode(response.body);
+        throw Exception(error['error'] ?? 'Cập nhật thanh toán thất bại');
+      }
+    } catch (e) {
+      throw Exception('Lỗi: $e');
     }
   }
 }

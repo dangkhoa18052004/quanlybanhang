@@ -6,7 +6,8 @@ import 'package:qlbh/config/theme_config.dart';
 import 'package:qlbh/models/product.dart';
 import 'package:qlbh/services/product_service.dart';
 import 'package:qlbh/services/admin_service.dart';
-import 'product_form_screen.dart'; // ✅ Import màn hình Form mới
+import 'package:qlbh/widgets/product_image.dart'; // ✅ Import ProductImage widget
+import 'product_form_screen.dart';
 
 class ProductManagementScreen extends StatefulWidget {
   const ProductManagementScreen({super.key});
@@ -27,7 +28,6 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
     _fetchProducts();
   }
 
-  // Hàm tải dữ liệu thật (Giả định đã hoạt động)
   Future<void> _fetchProducts() async {
     setState(() {
       _isLoading = true;
@@ -49,7 +49,6 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
     }
   }
 
-  // Hàm xóa sản phẩm
   Future<void> _confirmDelete(int productId, String name) async {
     final bool? confirm = await showDialog(
       context: context,
@@ -86,16 +85,13 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
     }
   }
 
-  // ✅ HÀM MỞ FORM THÊM/SỬA
   void _openProductForm({Product? product}) async {
     final result = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ProductFormScreen(product: product), // Gọi form mới
-      ),
+      MaterialPageRoute(builder: (_) => ProductFormScreen(product: product)),
     );
 
     if (result == true) {
-      _fetchProducts(); // Tải lại danh sách nếu có thay đổi
+      _fetchProducts();
     }
   }
 
@@ -108,7 +104,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         actions: <Widget>[
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: () => _openProductForm(), // ✅ Kết nối nút Thêm
+            onPressed: () => _openProductForm(),
             tooltip: 'Thêm Sản phẩm mới',
           ),
         ],
@@ -128,7 +124,18 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return Center(child: Text(_error!));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 60, color: Colors.red),
+            SizedBox(height: 16),
+            Text(_error!, textAlign: TextAlign.center),
+            SizedBox(height: 16),
+            ElevatedButton(onPressed: _fetchProducts, child: Text('Thử lại')),
+          ],
+        ),
+      );
     }
     if (_products.isEmpty) {
       return const Center(child: Text('Không có sản phẩm nào.'));
@@ -142,32 +149,41 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 12.0),
           child: ListTile(
-            leading: (product.imageUrl != null && product.imageUrl!.isNotEmpty)
-                ? Image.network(
-                    product.imageUrl!,
-                    width: 40,
-                    height: 40,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const Icon(
-                      Icons.image_not_supported,
-                      size: 40,
-                      color: Colors.grey,
-                    ),
-                  )
-                : const Icon(
-                    Icons.image_outlined,
-                    size: 40,
-                    color: Colors.grey,
-                  ),
-            title: Text(product.name),
+            // ✅ SỬ DỤNG ProductImage WIDGET
+            leading: ProductImage(
+              product: product,
+              width: 60,
+              height: 60,
+              fit: BoxFit.cover,
+            ),
+            title: Text(
+              product.name,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                SizedBox(height: 4),
                 Text(
-                  'Giá: ${product.price.toStringAsFixed(0)} VNĐ',
-                  style: TextStyle(color: AppTheme.accentColor),
+                  'Giá: ${_formatPrice(product.price)} VNĐ',
+                  style: TextStyle(
+                    color: AppTheme.accentColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                Text('Tồn kho: ${product.stockQuantity}'),
+                Text(
+                  'Tồn kho: ${product.stockQuantity}',
+                  style: TextStyle(
+                    color: product.stockQuantity < 10
+                        ? Colors.red
+                        : Colors.grey[700],
+                  ),
+                ),
+                if (product.categoryName != null)
+                  Text(
+                    'Danh mục: ${product.categoryName}',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
               ],
             ),
             trailing: Row(
@@ -175,20 +191,32 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: () =>
-                      _openProductForm(product: product), // ✅ Nút Sửa
+                  onPressed: () => _openProductForm(product: product),
+                  tooltip: 'Sửa sản phẩm',
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () =>
-                      _confirmDelete(product.id!, product.name), // ✅ Nút Xóa
-                ),
+                // IconButton(
+                //   icon: const Icon(Icons.delete, color: Colors.red),
+                //   onPressed: () => _confirmDelete(product.id, product.name),
+                //   tooltip: 'Xóa sản phẩm',
+                // ),
               ],
             ),
-            onTap: () {},
+            onTap: () {
+              // Có thể thêm xem chi tiết sản phẩm ở đây
+            },
           ),
         );
       },
     );
+  }
+
+  // Helper để format giá tiền
+  String _formatPrice(double price) {
+    return price
+        .toStringAsFixed(0)
+        .replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (Match m) => '${m[1]},',
+        );
   }
 }

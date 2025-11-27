@@ -16,6 +16,7 @@ class User {
     this.address,
     required this.role,
     this.avatarUrl,
+    required createdAt,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -27,8 +28,11 @@ class User {
       address: json['address'],
       role: json['role'],
       avatarUrl: json['avatar_url'],
+      createdAt: null,
     );
   }
+
+  get createdAt => null;
 
   Map<String, dynamic> toJson() {
     return {

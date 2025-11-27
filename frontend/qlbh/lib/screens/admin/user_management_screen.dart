@@ -1,10 +1,11 @@
-// lib/screens/admin/user_management_screen.dart (CODE HOÀN THIỆN)
-
+// lib/screens/admin/user_management_screen.dart
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:qlbh/config/theme_config.dart';
-import 'package:qlbh/models/user.dart'; // ✅ Cần import model User
+import 'package:qlbh/models/user.dart';
 import 'package:qlbh/services/admin_service.dart';
+import 'user_form_screen.dart';
+import 'user_detail_screen.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({Key? key}) : super(key: key);
@@ -17,7 +18,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   List<User> _users = [];
   bool _isLoading = true;
   String? _error;
-  String _selectedRoleFilter = 'all'; // all, customer, admin
+  String _selectedRoleFilter = 'all';
   TextEditingController _searchController = TextEditingController();
 
   @override
@@ -34,19 +35,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   void _onSearchChanged() {
-    // Trì hoãn việc fetch để tránh gọi API quá nhiều lần khi người dùng đang gõ
-    // (Thực tế nên dùng debounce, nhưng ở đây ta dùng fetch ngay)
     _fetchUsers(search: _searchController.text);
   }
 
-  // ✅ HÀM GỌI API LẤY DANH SÁCH USER
   Future<void> _fetchUsers({String? search}) async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
-    // Lọc theo role (trừ 'all')
     final roleFilter = _selectedRoleFilter == 'all'
         ? null
         : _selectedRoleFilter;
@@ -55,7 +52,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       final response = await AdminService.getAllUsers(
         role: roleFilter,
         search: search,
-        // Có thể thêm page/limit nếu muốn
       );
 
       setState(() {
@@ -64,7 +60,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     } catch (e) {
       setState(() {
         _error =
-            'Lỗi tải danh sách người dùng: ${e.toString().replaceAll('Exception: ', '')}';
+            'Lỗi tải danh sách: ${e.toString().replaceAll('Exception: ', '')}';
       });
       Fluttertoast.showToast(msg: _error!, backgroundColor: Colors.red);
     } finally {
@@ -72,18 +68,35 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
   }
 
-  // ✅ HÀM CẬP NHẬT ROLE
-  Future<void> _updateRole(int userId, String currentRole) async {
-    final newRole = currentRole == 'admin' ? 'customer' : 'admin';
+  // ✅ MỞ FORM THÊM/SỬA
+  void _openUserForm({User? user}) async {
+    final result = await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => UserFormScreen(user: user)));
 
-    // Yêu cầu xác nhận (Tùy chọn)
+    if (result == true) {
+      _fetchUsers();
+    }
+  }
+
+  // ✅ MỞ MÀN HÌNH CHI TIẾT
+  void _openUserDetail(User user) async {
+    final result = await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => UserDetailScreen(user: user)));
+
+    if (result == true) {
+      _fetchUsers(); // Reload nếu có thay đổi
+    }
+  }
+
+  // ✅ XÓA NGƯỜI DÙNG
+  Future<void> _confirmDelete(int userId, String name) async {
     final bool? confirm = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cập nhật quyền hạn'),
-        content: Text(
-          'Bạn có chắc muốn chuyển người dùng này thành "$newRole"?',
-        ),
+        title: const Text('Xác nhận Xóa'),
+        content: Text('Bạn có chắc chắn muốn xóa người dùng "$name"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -91,12 +104,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              'Xác nhận',
-              style: TextStyle(
-                color: newRole == 'admin' ? Colors.green : Colors.red,
-              ),
-            ),
+            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -104,12 +112,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     if (confirm == true) {
       try {
-        await AdminService.updateUserRole(userId: userId, role: newRole);
+        await AdminService.deleteUser(userId);
         Fluttertoast.showToast(
-          msg: 'Cập nhật quyền thành công!',
+          msg: 'Xóa người dùng thành công!',
           backgroundColor: AppTheme.successColor,
         );
-        _fetchUsers(); // Tải lại danh sách
+        _fetchUsers();
       } catch (e) {
         Fluttertoast.showToast(
           msg: e.toString().replaceAll('Exception: ', ''),
@@ -125,6 +133,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       appBar: AppBar(
         title: const Text('Quản lý Người dùng'),
         backgroundColor: AppTheme.primaryColor,
+        actions: [
+          // ✅ NÚT THÊM NGƯỜI DÙNG
+          IconButton(
+            icon: const Icon(Icons.person_add),
+            onPressed: () => _openUserForm(),
+            tooltip: 'Thêm người dùng mới',
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -154,24 +170,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     child: DropdownButton<String>(
                       value: _selectedRoleFilter,
                       items: const [
-                        DropdownMenuItem(
-                          value: 'all',
-                          child: Text('Tất cả Users'),
-                        ),
+                        DropdownMenuItem(value: 'all', child: Text('Tất cả')),
                         DropdownMenuItem(
                           value: 'customer',
                           child: Text('Khách hàng'),
                         ),
-                        DropdownMenuItem(
-                          value: 'admin',
-                          child: Text('Quản trị viên'),
-                        ),
+                        DropdownMenuItem(value: 'admin', child: Text('Admin')),
                       ],
                       onChanged: (value) {
                         if (value != null) {
-                          setState(() {
-                            _selectedRoleFilter = value;
-                          });
+                          setState(() => _selectedRoleFilter = value);
                           _fetchUsers(search: _searchController.text);
                         }
                       },
@@ -199,13 +207,25 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return Center(child: Text(_error!));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 60, color: Colors.red),
+            SizedBox(height: 16),
+            Text(_error!, textAlign: TextAlign.center),
+            SizedBox(height: 16),
+            ElevatedButton(onPressed: _fetchUsers, child: Text('Thử lại')),
+          ],
+        ),
+      );
     }
     if (_users.isEmpty) {
       return const Center(child: Text('Không tìm thấy người dùng nào.'));
     }
 
     return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 80),
       itemCount: _users.length,
       itemBuilder: (context, index) {
         final user = _users[index];
@@ -219,19 +239,26 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   ? Colors.blue.shade100
                   : Colors.red.shade100,
               child: Text(
-                user.fullName.isNotEmpty ? user.fullName[0] : 'U',
-                style: TextStyle(color: isCustomer ? Colors.blue : Colors.red),
+                user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : 'U',
+                style: TextStyle(
+                  color: isCustomer ? Colors.blue : Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-            title: Text(user.fullName),
+            title: Text(
+              user.fullName,
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(user.email, style: const TextStyle(fontSize: 12)),
-                Text(
-                  'SĐT: ${user.phone ?? 'N/A'}',
-                  style: const TextStyle(fontSize: 12),
-                ),
+                if (user.phone != null)
+                  Text(
+                    'SĐT: ${user.phone}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
               ],
             ),
             trailing: Row(
@@ -255,26 +282,30 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           ? Colors.green.shade800
                           : Colors.red.shade800,
                       fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
                   ),
                 ),
+                // ✅ NÚT XEM CHI TIẾT
                 IconButton(
-                  icon: Icon(
-                    isCustomer ? Icons.star_border : Icons.star,
-                    color: isCustomer ? Colors.grey : Colors.red,
-                  ),
-                  onPressed: () =>
-                      _updateRole(user.id!, user.role), // ✅ Nút chuyển đổi Role
-                  tooltip: isCustomer
-                      ? 'Nâng cấp lên Admin'
-                      : 'Hạ cấp xuống Customer',
+                  icon: const Icon(Icons.info_outline, color: Colors.blue),
+                  onPressed: () => _openUserDetail(user),
+                  tooltip: 'Xem chi tiết',
                 ),
+                // NÚT SỬA
+                IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.blue),
+                  onPressed: () => _openUserForm(user: user),
+                  tooltip: 'Sửa người dùng',
+                ),
+                // NÚT XÓA
+                // IconButton(
+                //   icon: const Icon(Icons.delete, color: Colors.red),
+                //   onPressed: () => _confirmDelete(user.id!, user.fullName),
+                //   tooltip: 'Xóa người dùng',
+                // ),
               ],
             ),
-            onTap: () {
-              // TODO: Điều hướng đến màn hình chi tiết người dùng nếu cần
-              Fluttertoast.showToast(msg: 'Xem chi tiết ${user.fullName}');
-            },
           ),
         );
       },
