@@ -5,7 +5,7 @@ import '../config/theme_config.dart';
 
 class CustomButton extends StatelessWidget {
   final String text;
-  // SỬA LỖI: Thêm dấu ? để chấp nhận null.
+  // ✅ FIX: Thêm dấu ? để chấp nhận null, khắc phục lỗi argument_type_not_assignable.
   final VoidCallback? onPressed;
   final bool isLoading;
   final bool isOutlined;
@@ -26,6 +26,7 @@ class CustomButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Logic: Nếu isLoading là true thì onPressed là null, nếu không thì là giá trị được truyền vào
+    // Loại finalOnPressed đã là VoidCallback? nên không gây lỗi.
     final finalOnPressed = isLoading ? null : onPressed;
 
     return SizedBox(
@@ -59,7 +60,6 @@ class CustomButton extends StatelessWidget {
   }
 
   Widget _buildChild(BuildContext context, {bool outlined = false}) {
-    // ... (Giữ nguyên phần còn lại của _buildChild, đảm bảo màu sắc và icon hiển thị đúng)
     if (isLoading) {
       return SizedBox(
         height: 20,
@@ -72,8 +72,7 @@ class CustomButton extends StatelessWidget {
         ),
       );
     }
-    // ...
-    // Giữ nguyên phần hiển thị Text/Row nếu không isLoading
+
     if (icon != null) {
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,

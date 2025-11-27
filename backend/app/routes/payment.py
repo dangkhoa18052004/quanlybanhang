@@ -16,6 +16,7 @@ from ..models import get_db_connection, get_db_cursor
 payment_bp = Blueprint('payment', __name__)
 
 NGROK_URL = os.getenv('NGROK_URL', 'https://anika-unfinical-kala.ngrok-free.dev')
+
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 
 MOMO_PARTNER_CODE = os.getenv('MOMO_PARTNER_CODE', "MOMO") 
@@ -196,7 +197,7 @@ def create_order_with_payment(current_user):
                         WHERE id = %s
                     """, (item['quantity'], item['product_id']))
                 
-                # ✅ Create payment record (FIXED: payment_status)
+                # ✅ Create payment record
                 payment_code = f"PAY{int(time.time())}"
                 
                 cur.execute("""
@@ -208,7 +209,7 @@ def create_order_with_payment(current_user):
                 
                 payment = dict(cur.fetchone())
                 
-                # TRACK DISCOUNT USAGE - FIXED VARIABLE NAMES
+                # TRACK DISCOUNT USAGE
                 if discount_id:
                     cur.execute("""
                         INSERT INTO discount_code_usage (
@@ -239,7 +240,7 @@ def create_order_with_payment(current_user):
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-## 2. Khởi tạo Thanh toán MoMo QR
+## 2. Khởi tạo Thanh toán MoMo QR (✅ ĐÃ SỬA)
 
 @payment_bp.route('/initiate-momo-qr', methods=['POST'])
 @token_required
@@ -268,27 +269,29 @@ def initiate_momo_qr(current_user):
                     return jsonify({'error': 'Thanh toán không tồn tại'}), 404
                 
                 # Tạo MoMo request
-                order_id = payment_code # Dùng payment_code làm orderId
+                order_id = payment_code
                 amount = str(int(payment['amount']))
                 order_info = f"Thanh toán đơn hàng {payment['order_number']}"
                 request_id = f"{order_id}_{int(time.time())}"
+                extra_data = ""  # Để trống
                 
-                # Tạo signature
+                # ✅ THAY ĐỔI: Signature cho requestType=qrcode (THỨ TỰ KHÁC)
                 raw_signature = (
                     f"accessKey={MOMO_ACCESS_KEY}"
                     f"&amount={amount}"
-                    f"&extraData="
+                    f"&extraData={extra_data}"
                     f"&ipnUrl={MOMO_NOTIFY_URL}"
                     f"&orderId={order_id}"
                     f"&orderInfo={order_info}"
                     f"&partnerCode={MOMO_PARTNER_CODE}"
                     f"&redirectUrl={MOMO_RETURN_URL}"
                     f"&requestId={request_id}"
-                    f"&requestType=captureWallet"
+                    f"&requestType=captureWallet"  # ✅ VẪN DÙNG captureWallet TRONG SIGNATURE
                 )
                 
                 signature = generate_momo_signature(raw_signature, MOMO_SECRET_KEY)
                 
+                # ✅ PAYLOAD: Dùng captureWallet thay vì qrcode
                 payload = {
                     "partnerCode": MOMO_PARTNER_CODE,
                     "accessKey": MOMO_ACCESS_KEY,
@@ -298,27 +301,29 @@ def initiate_momo_qr(current_user):
                     "orderInfo": order_info,
                     "redirectUrl": MOMO_RETURN_URL,
                     "ipnUrl": MOMO_NOTIFY_URL,
-                    "extraData": "",
-                    "requestType": "captureWallet",
+                    "extraData": extra_data,
+                    "requestType": "captureWallet",  # ✅ DÙNG captureWallet
                     "signature": signature,
                     "lang": "vi"
                 }
                 
                 print(f"[MOMO QR REQUEST] Initiating MoMo for {order_id}")
+                print(f"[MOMO QR REQUEST] Payload: {json.dumps(payload, indent=2)}")
                 
                 response = requests.post(MOMO_ENDPOINT, json=payload, timeout=10)
                 result = response.json()
                 
+                print(f"[MOMO QR RESPONSE] Full result: {json.dumps(result, indent=2)}")
                 print(f"[MOMO QR RESPONSE] Result Code: {result.get('resultCode')}")
                 
                 if result.get('resultCode') == 0:
-                    # ✅ GENERATE QR CODE IMAGE
-                    qr_data = result.get('qrCodeUrl')
+                    # ✅ MoMo trả về deeplink (dùng để mở app) hoặc payUrl (web)
+                    qr_data_url = result.get('deeplink') or result.get('payUrl')
                     
-                    if qr_data:
-                        # Generate QR image
+                    if qr_data_url:
+                        # Generate QR image từ deeplink/payUrl
                         qr = qrcode.QRCode(version=1, box_size=10, border=5)
-                        qr.add_data(qr_data)
+                        qr.add_data(qr_data_url)
                         qr.make(fit=True)
                         
                         img = qr.make_image(fill_color="black", back_color="white")
@@ -329,10 +334,12 @@ def initiate_momo_qr(current_user):
                         img_str = base64.b64encode(buffer.getvalue()).decode()
                         
                         qr_image = f"data:image/png;base64,{img_str}"
+                        print(f"[MOMO QR] QR Image generated from {qr_data_url}")
                     else:
                         qr_image = None
+                        print(f"[MOMO QR WARNING] No deeplink or payUrl in response")
                         
-                    # Update payment record with QR/Deeplink info
+                    # Update payment record
                     cur.execute("""
                         UPDATE payments 
                         SET transaction_id = %s, 
@@ -341,7 +348,7 @@ def initiate_momo_qr(current_user):
                         WHERE payment_code = %s
                     """, (
                         request_id,
-                        result.get('qrCodeUrl'),
+                        qr_data_url,  # Lưu deeplink hoặc payUrl
                         result.get('deeplink'),
                         payment_code
                     ))
@@ -350,7 +357,7 @@ def initiate_momo_qr(current_user):
                     return jsonify({
                         'message': 'Tạo mã QR thành công',
                         'qr_code_image': qr_image,
-                        'qr_code_url': result.get('qrCodeUrl'),
+                        'qr_code_url': qr_data_url,
                         'deep_link': result.get('deeplink'),
                         'payment_url': result.get('payUrl'),
                         'order_number': payment['order_number'],
@@ -420,7 +427,7 @@ def momo_return_url():
 
                 # Cập nhật database
                 if result_code == '0':
-                    # Thành công - ✅ FIXED: payment_status
+                    # Thành công
                     cur.execute("""
                         UPDATE payments
                         SET payment_status = 'completed',
@@ -441,7 +448,7 @@ def momo_return_url():
                     print(f"[MOMO RETURN SUCCESS] Order {order_id} confirmed.")
                     return redirect(f'{FRONTEND_URL}/payment/success?order_id={payment["order_id"]}&pay_code={order_id}')
                 else:
-                    # Thất bại - ✅ FIXED: payment_status
+                    # Thất bại
                     cur.execute("""
                         UPDATE payments
                         SET payment_status = 'failed'
@@ -495,7 +502,6 @@ def momo_notify_url():
         
         if received_signature != expected_signature:
             print("[IPN ERROR] Invalid signature")
-            # MoMo yêu cầu trả về resultCode=97 nếu signature không hợp lệ
             return jsonify({'resultCode': 97, 'message': 'Invalid signature'}), 200
         
         with get_db_connection() as conn:
@@ -506,17 +512,14 @@ def momo_notify_url():
                 
                 if not payment:
                     print(f"[IPN ERROR] Payment not found: {order_id}")
-                    # MoMo yêu cầu trả về resultCode=99 nếu không tìm thấy
                     return jsonify({'resultCode': 99, 'message': 'Payment not found'}), 200
                 
-                # ✅ FIXED: payment_status
                 if payment['payment_status'] == 'completed':
                     print(f"[IPN INFO] Payment {order_id} already completed.")
-                    # Đã hoàn tất, trả về thành công để MoMo ngừng gửi
                     return jsonify({'resultCode': 0, 'message': 'Success'}), 200
 
                 if result_code == '0':
-                    # Thanh toán thành công - ✅ FIXED: payment_status
+                    # Thanh toán thành công
                     cur.execute("""
                         UPDATE payments
                         SET payment_status = 'completed',
@@ -535,10 +538,9 @@ def momo_notify_url():
                     
                     conn.commit()
                     print(f"[IPN SUCCESS] ✅ Payment completed via IPN: {order_id}")
-                    # Trả về thành công
                     return jsonify({'resultCode': 0, 'message': 'Success'}), 200
                 else:
-                    # Thanh toán thất bại - ✅ FIXED: payment_status
+                    # Thanh toán thất bại
                     cur.execute("""
                         UPDATE payments
                         SET payment_status = 'failed'
@@ -546,13 +548,11 @@ def momo_notify_url():
                     """, (order_id,))
                     conn.commit()
                     print(f"[IPN FAILED] ❌ Payment failed: {order_id}, Result: {result_code}")
-                    # MoMo yêu cầu trả về resultCode=0 dù thất bại hay thành công (miễn là nhận được)
                     return jsonify({'resultCode': 0, 'message': 'Confirmed'}), 200
                     
     except Exception as e:
         print(f"[IPN ERROR] System error: {str(e)}")
         traceback.print_exc()
-        # Trả về System Error
         return jsonify({'resultCode': 99, 'message': 'System error'}), 200
 
 ## 5. Check Payment Status
@@ -581,7 +581,6 @@ def check_momo_status(current_user, payment_code):
                 if not payment:
                     return jsonify({'error': 'Payment không tồn tại hoặc không thuộc sở hữu của bạn'}), 404
                 
-                # ✅ FIXED: payment_status
                 return jsonify({
                     'payment_code': payment['payment_code'],
                     'order_number': payment['order_number'],

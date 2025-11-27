@@ -3,7 +3,7 @@ class DiscountCode {
   final int? id;
   final String code;
   final String? description;
-  final String discountType; // 'percentage' or 'fixed'
+  final String discountType;
   final double discountValue;
   final double? minOrderValue;
   final double? maxDiscountAmount;
@@ -30,34 +30,40 @@ class DiscountCode {
 
   factory DiscountCode.fromJson(Map<String, dynamic> json) {
     return DiscountCode(
-      id: json['id'],
-      code: json['code'],
-      description: json['description'],
-      discountType: json['discount_type'],
-      discountValue: _parseDouble(json['discount_value']),
-      minOrderValue: json['min_order_value'] != null
-          ? _parseDouble(json['min_order_value'])
-          : null,
-      maxDiscountAmount: json['max_discount_amount'] != null
-          ? _parseDouble(json['max_discount_amount'])
-          : null,
-      usageLimit: json['usage_limit'],
-      usedCount: json['used_count'],
+      id: _parseInt(json['id']),
+      code: json['code']?.toString() ?? '',
+      description: json['description']?.toString(),
+      discountType: json['discount_type']?.toString() ?? 'percentage',
+      discountValue: _parseDouble(json['discount_value']) ?? 0.0,
+      minOrderValue: _parseDouble(json['min_order_value']),
+      maxDiscountAmount: _parseDouble(json['max_discount_amount']),
+      usageLimit: _parseInt(json['usage_limit']),
+      usedCount: _parseInt(json['used_count']),
       startDate: json['start_date'] != null
-          ? DateTime.parse(json['start_date'])
+          ? DateTime.tryParse(json['start_date'].toString())
           : null,
       endDate: json['end_date'] != null
-          ? DateTime.parse(json['end_date'])
+          ? DateTime.tryParse(json['end_date'].toString())
           : null,
-      isActive: json['is_active'],
+      isActive: json['is_active'] as bool?,
     );
   }
 
-  static double _parseDouble(dynamic value) {
-    if (value == null) return 0.0;
+  // ✅ Helper methods để parse an toàn
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
     if (value is double) return value;
     if (value is int) return value.toDouble();
-    return double.tryParse(value.toString()) ?? 0.0;
+    if (value is String) return double.tryParse(value);
+    return null;
   }
 
   String get displayDiscount {

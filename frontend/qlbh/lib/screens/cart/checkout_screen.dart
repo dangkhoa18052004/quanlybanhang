@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import '../../providers/cart_provider.dart';
 import '../../services/payment_service.dart';
 import '../../services/discount_service.dart';
@@ -11,7 +10,7 @@ import '../../utils/helpers.dart';
 import '../../widgets/custom_button.dart';
 import '../orders/order_detail_screen.dart';
 import '../discount/discount_codes_screen.dart';
-// import '../payment/momo_qr_screen.dart';
+import '../payment/momo_qr_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({Key? key}) : super(key: key);
@@ -65,7 +64,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (response['valid'] == true) {
         setState(() {
           _appliedDiscountCode = code;
-          // Đảm bảo kiểu dữ liệu là double
           _discountAmount = (response['discount']['discount_amount'] as num)
               .toDouble();
         });
@@ -155,6 +153,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final orderId = response['order']['id'];
       final orderNumber = response['order']['order_number'];
       final paymentCode = response['payment']['payment_code'];
+      final finalTotal = cart.total - _discountAmount;
 
       if (_paymentMethod == 'momo') {
         print('[CHECKOUT] Initiating MoMo payment...');
@@ -164,53 +163,94 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           paymentCode: paymentCode,
         );
 
-        final paymentUrl = momoResponse['payment_url'];
-        print('[CHECKOUT] Payment URL: $paymentUrl');
+        print('[CHECKOUT] MoMo Response: $momoResponse');
+
+        final qrCodeImage = momoResponse['qr_code_image'];
+        final deepLink = momoResponse['deep_link'];
+
+        if (qrCodeImage == null) {
+          throw Exception('Không nhận được mã QR từ MoMo');
+        }
 
         if (!mounted) return;
 
-        // 3. Open MoMo WebView
-        final result = await Navigator.push(
+        // 3. Show QR Screen
+        await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => MoMoPaymentWebView(
-              paymentUrl: paymentUrl,
-              paymentCode: paymentCode,
+            builder: (_) => MoMoQRScreen(
+              qrCodeImage: qrCodeImage,
+              deepLink: deepLink,
               orderNumber: orderNumber,
+              amount: finalTotal,
+              paymentCode: paymentCode,
             ),
           ),
         );
 
         if (!mounted) return;
 
-        if (result == true) {
-          // Payment successful (trang web MoMo redirect về success)
-          print('[CHECKOUT] Payment successful!');
+        // 4. After user returns, check payment status
+        print('[CHECKOUT] Checking payment status...');
 
-          // Clear cart
-          await cart.clearCart();
+        try {
+          final statusResponse = await PaymentService.checkPaymentStatus(
+            paymentCode,
+          );
 
-          // Show success message with order number
+          print(
+            '[CHECKOUT] Payment status: ${statusResponse['payment_status']}',
+          );
+
+          if (statusResponse['payment_status'] == 'completed') {
+            // Payment successful
+            print('[CHECKOUT] Payment verified as completed');
+
+            await cart.clearCart();
+
+            Fluttertoast.showToast(
+              msg: 'Thanh toán thành công!\nMã đơn: $orderNumber',
+              backgroundColor: AppTheme.successColor,
+              toastLength: Toast.LENGTH_LONG,
+            );
+
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (_) => OrderDetailScreen(orderId: orderId),
+              ),
+              (route) => route.isFirst,
+            );
+          } else {
+            // Payment pending or failed
+            Fluttertoast.showToast(
+              msg:
+                  'Chưa nhận được xác nhận thanh toán.\nVui lòng kiểm tra lại đơn hàng.',
+              backgroundColor: Colors.orange,
+              toastLength: Toast.LENGTH_LONG,
+            );
+
+            // Navigate to order detail to let user check status
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (_) => OrderDetailScreen(orderId: orderId),
+              ),
+              (route) => route.isFirst,
+            );
+          }
+        } catch (e) {
+          print('[CHECKOUT] Error checking status: $e');
           Fluttertoast.showToast(
-            msg: 'Thanh toán thành công!\nMã đơn: $orderNumber',
-            backgroundColor: AppTheme.successColor,
+            msg:
+                'Không thể kiểm tra trạng thái thanh toán.\nVui lòng kiểm tra đơn hàng.',
+            backgroundColor: Colors.orange,
             toastLength: Toast.LENGTH_LONG,
           );
 
-          // Navigate to order detail
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
               builder: (_) => OrderDetailScreen(orderId: orderId),
             ),
             (route) => route.isFirst,
-          );
-        } else {
-          // Payment failed or cancelled
-          print('[CHECKOUT] Payment failed/cancelled');
-
-          Fluttertoast.showToast(
-            msg: 'Thanh toán thất bại hoặc đã hủy',
-            backgroundColor: Colors.orange,
           );
         }
       } else {
@@ -372,7 +412,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             decoration: InputDecoration(
                               labelText: 'Nhập mã giảm giá',
                               prefixIcon: const Icon(Icons.discount),
-                              // Show clear button if discount applied
                               suffixIcon: _appliedDiscountCode != null
                                   ? IconButton(
                                       icon: const Icon(
@@ -511,7 +550,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               child: SafeArea(
                 child: CustomButton(
                   text: 'Đặt hàng',
-                  onPressed: _isProcessing ? null : () => _processOrder(),
+                  onPressed: _isProcessing ? null : _processOrder,
                   isLoading: _isProcessing,
                 ),
               ),
@@ -577,132 +616,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// MoMo Payment WebView
-class MoMoPaymentWebView extends StatefulWidget {
-  final String paymentUrl;
-  final String paymentCode;
-  final String orderNumber;
-
-  const MoMoPaymentWebView({
-    Key? key,
-    required this.paymentUrl,
-    required this.paymentCode,
-    required this.orderNumber,
-  }) : super(key: key);
-
-  @override
-  State<MoMoPaymentWebView> createState() => _MoMoPaymentWebViewState();
-}
-
-class _MoMoPaymentWebViewState extends State<MoMoPaymentWebView> {
-  late final WebViewController _controller;
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-
-    print('[MOMO WEBVIEW] Loading: ${widget.paymentUrl}');
-
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (url) {
-            print('[MOMO WEBVIEW] Page started: $url');
-
-            // Check payment result
-            if (url.contains('payment/success') ||
-                url.contains('resultCode=0')) {
-              print('[MOMO WEBVIEW] Payment SUCCESS');
-              Navigator.pop(context, true);
-            } else if (url.contains('payment/failed') ||
-                url.contains('resultCode=')) {
-              print('[MOMO WEBVIEW] Payment FAILED');
-              Navigator.pop(context, false);
-            }
-          },
-          onPageFinished: (url) {
-            setState(() {
-              _isLoading = false;
-            });
-            print('[MOMO WEBVIEW] Page finished: $url');
-          },
-          onWebResourceError: (error) {
-            print('[MOMO WEBVIEW ERROR] ${error.description}');
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(widget.paymentUrl));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Thanh toán MoMo', style: TextStyle(fontSize: 16)),
-            Text(
-              'Mã đơn: ${widget.orderNumber}',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () {
-            // Confirm before closing
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Hủy thanh toán?'),
-                content: const Text('Bạn có chắc muốn hủy thanh toán?'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Tiếp tục'),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context); // Close dialog
-                      Navigator.pop(context, false); // Close webview
-                    },
-                    child: const Text(
-                      'Hủy',
-                      style: TextStyle(color: Colors.red),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-      body: Stack(
-        children: [
-          WebViewWidget(controller: _controller),
-          if (_isLoading)
-            const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Đang tải trang thanh toán...'),
-                ],
-              ),
-            ),
-        ],
-      ),
     );
   }
 }

@@ -1,135 +1,140 @@
-import 'package:http/http.dart' as http;
-import 'package:qlbh/config/api_config.dart';
+import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../config/theme_config.dart';
+import '../../utils/helpers.dart';
 
-class PaymentService {
-  // Hàm trợ giúp lấy Token từ SharedPreferences (Giả định)
-  static Future<String?> _getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    // Thay 'auth_token' bằng key bạn dùng để lưu JWT
-    return prefs.getString('auth_token');
-  }
+class MoMoQRScreen extends StatelessWidget {
+  final String qrCodeImage; // base64 string
+  final String? deepLink;
+  final String orderNumber;
+  final double amount;
 
-  // ----------------------------------------------------------------------
-  // 1. GỌI API KHỞI TẠO MOMO QR
-  // ----------------------------------------------------------------------
+  const MoMoQRScreen({
+    Key? key,
+    required this.qrCodeImage,
+    this.deepLink,
+    required this.orderNumber,
+    required this.amount,
+    required paymentCode,
+  }) : super(key: key);
 
-  static Future<Map<String, dynamic>> initiateMoMoQR({
-    required String paymentCode,
-  }) async {
-    final token = await _getToken();
-
-    if (token == null) {
-      throw Exception('Không có token xác thực');
-    }
-
-    try {
-      final response = await http
-          .post(
-            Uri.parse('${ApiConfig.payment}/initiate-momo-qr'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-            body: json.encode({'payment_code': paymentCode}),
-          )
-          .timeout(ApiConfig.connectTimeout);
-
-      final responseData = json.decode(response.body);
-
-      if (response.statusCode == 200) {
-        // Trả về dữ liệu thành công (bao gồm qr_code_image, deep_link)
-        return responseData;
+  Future<void> _openMoMoApp(BuildContext context) async {
+    if (deepLink != null) {
+      final uri = Uri.parse(deepLink!);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        // Xử lý lỗi từ Backend (ví dụ: 400 Bad Request)
-        final errorMessage = responseData['error'] ?? 'Lỗi khởi tạo thanh toán';
-        throw Exception(errorMessage);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể mở ứng dụng MoMo')),
+        );
       }
-    } catch (e) {
-      throw Exception('Lỗi kết nối hoặc xử lý dữ liệu: $e');
     }
   }
 
-  // ----------------------------------------------------------------------
-  // 2. GỌI API KIỂM TRA TRẠNG THÁI THANH TOÁN
-  // ----------------------------------------------------------------------
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Thanh toán MoMo')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            // Order Info
+            Text(
+              'Mã đơn: $orderNumber',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              Helpers.formatCurrency(amount),
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            const SizedBox(height: 32),
 
-  static Future<Map<String, dynamic>> checkPaymentStatus(
-    String paymentCode,
-  ) async {
-    final token = await _getToken();
+            // QR Code
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Image.memory(
+                base64Decode(qrCodeImage.split(',').last),
+                width: 280,
+                height: 280,
+              ),
+            ),
 
-    if (token == null) {
-      throw Exception('Không có token xác thực');
-    }
+            const SizedBox(height: 32),
 
-    try {
-      final response = await http
-          .get(
-            Uri.parse('${ApiConfig.payment}/check-momo-status/$paymentCode'),
-            headers: {'Authorization': 'Bearer $token'},
-          )
-          .timeout(ApiConfig.connectTimeout);
+            // Instructions
+            const Text(
+              'Quét mã QR bằng ứng dụng MoMo để thanh toán',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
 
-      final responseData = json.decode(response.body);
+            const SizedBox(height: 24),
 
-      if (response.statusCode == 200) {
-        // Trả về dữ liệu trạng thái (bao gồm status)
-        return responseData;
-      } else {
-        // Xử lý lỗi
-        final errorMessage =
-            responseData['error'] ?? 'Không thể kiểm tra trạng thái';
-        throw Exception(errorMessage);
-      }
-    } catch (e) {
-      throw Exception('Lỗi kết nối hoặc xử lý dữ liệu: $e');
-    }
-  }
+            // Open MoMo App Button
+            if (deepLink != null)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _openMoMoApp(context),
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text(
+                    'Mở ứng dụng MoMo',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.pink,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
 
-  // ----------------------------------------------------------------------
-  // 3. (Tùy chọn) Hàm Tạo đơn hàng
-  // ----------------------------------------------------------------------
+            const SizedBox(height: 16),
 
-  static Future<Map<String, dynamic>> createOrder({
-    required String shippingAddress,
-    required String phone,
-    String? discountCode,
-    required String paymentMethod,
-  }) async {
-    final token = await _getToken();
-    if (token == null) {
-      throw Exception('Không có token xác thực');
-    }
-
-    try {
-      final response = await http
-          .post(
-            Uri.parse('${ApiConfig.payment}/create-order'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-            body: json.encode({
-              'shipping_address': shippingAddress,
-              'phone': phone,
-              'discount_code': discountCode,
-              'payment_method': paymentMethod,
-            }),
-          )
-          .timeout(ApiConfig.connectTimeout);
-
-      final responseData = json.decode(response.body);
-
-      if (response.statusCode == 201) {
-        return responseData;
-      } else {
-        final errorMessage = responseData['error'] ?? 'Lỗi tạo đơn hàng';
-        throw Exception(errorMessage);
-      }
-    } catch (e) {
-      throw Exception('Lỗi kết nối hoặc xử lý dữ liệu: $e');
-    }
+            // Note
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Colors.orange),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Sau khi thanh toán thành công, vui lòng quay lại màn hình này để kiểm tra trạng thái đơn hàng',
+                      style: TextStyle(fontSize: 14, color: Colors.orange[800]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

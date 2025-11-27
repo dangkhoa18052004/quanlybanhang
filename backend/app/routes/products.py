@@ -1,7 +1,7 @@
 # backend/app/routes/products.py
 from flask import Blueprint, request, jsonify
 from app.models import get_db_connection, get_db_cursor
-
+from app.utils.decorators import admin_required, token_required
 products_bp = Blueprint('products', __name__)
 
 @products_bp.route('/categories', methods=['GET'])
@@ -149,6 +149,90 @@ def get_product_detail(product_id):
                 result['reviews'] = [dict(r) for r in reviews]
                 
                 return jsonify({'product': result}), 200
+                
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500.
+    
+
+@products_bp.route('/products/<int:product_id>', methods=['PUT', 'PATCH'])
+@token_required
+@admin_required
+def update_product(product_id, current_user):
+    """Cập nhật sản phẩm (chỉ admin)"""
+    try:
+        data = request.json
+        updates = []
+        params = []
+        
+        # Chỉ cập nhật các trường được cung cấp
+        if 'name' in data:
+            updates.append("name = %s")
+            params.append(data['name'])
+        if 'description' in data:
+            updates.append("description = %s")
+            params.append(data['description'])
+        if 'price' in data:
+            updates.append("price = %s")
+            params.append(data['price'])
+        if 'stock_quantity' in data:
+            updates.append("stock_quantity = %s")
+            params.append(data['stock_quantity'])
+        if 'category_id' in data:
+            updates.append("category_id = %s")
+            params.append(data['category_id'])
+
+        if not updates:
+            return jsonify({'error': 'Không có dữ liệu cập nhật'}), 400
+
+        params.append(product_id)
+        
+        update_sql = ", ".join(updates)
+        
+        with get_db_connection() as conn:
+            with get_db_cursor(conn) as cur:
+                cur.execute(f"""
+                    UPDATE products 
+                    SET {update_sql}
+                    WHERE id = %s
+                    RETURNING id, name
+                """, params)
+                
+                updated_product = cur.fetchone()
+                
+                if not updated_product:
+                    return jsonify({'error': 'Không tìm thấy sản phẩm để cập nhật'}), 404
+                
+                # Logic phức tạp hơn: Cập nhật hình ảnh (cần xóa cũ và chèn mới nếu cần)
+                # ... 
+                
+                return jsonify({'message': 'Cập nhật sản phẩm thành công', 'product': dict(updated_product)}), 200
+                
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@products_bp.route('/products/<int:product_id>', methods=['DELETE'])
+@token_required
+@admin_required
+def delete_product(product_id, current_user):
+    """Xóa sản phẩm (chỉ admin)"""
+    try:
+        with get_db_connection() as conn:
+            with get_db_cursor(conn) as cur:
+                # Cần xóa các bản ghi liên quan (product_images) trước
+                cur.execute("DELETE FROM product_images WHERE product_id = %s", (product_id,))
+                
+                # Xóa sản phẩm
+                cur.execute("""
+                    DELETE FROM products 
+                    WHERE id = %s
+                    RETURNING id
+                """, (product_id,))
+                
+                if cur.rowcount == 0:
+                    return jsonify({'error': 'Không tìm thấy sản phẩm để xóa'}), 404
+                
+                return jsonify({'message': 'Xóa sản phẩm thành công'}), 200
                 
     except Exception as e:
         return jsonify({'error': str(e)}), 500

@@ -2,7 +2,9 @@ class ApiConfig {
   // static const String baseUrl = 'http://192.168.100.151:5000/api';
 
   //  dùng Android Emulator
-  static const String baseUrl = 'http://10.0.2.2:5000/api';
+  // static const String baseUrl = 'http://10.0.2.2:5000/api';
+  // chạy bằng gg
+  static const String baseUrl = 'http://127.0.0.1:5000/api';
 
   static const String auth = '$baseUrl/auth';
   static const String products = '$baseUrl/products';

@@ -12,6 +12,7 @@ admin_bp = Blueprint('admin', __name__)
 def create_product():
     """Tạo sản phẩm mới với upload ảnh local"""
     try:
+        # Nhận dữ liệu qua form-data
         name = request.form.get('name')
         description = request.form.get('description')
         price = request.form.get('price')
@@ -21,12 +22,10 @@ def create_product():
         if not all([name, price, category_id]):
             return jsonify({'error': 'Thiếu thông tin bắt buộc'}), 400
         
-        # Lấy file ảnh
         image_file = request.files.get('image')
         image_url = None
         
         if image_file:
-            # ✅ Upload ảnh local
             image_url = save_upload_file(image_file, folder='products')
         
         with get_db_connection() as conn:
@@ -54,14 +53,13 @@ def create_product():
 @admin_bp.route('/products/<int:product_id>', methods=['PUT'])
 @admin_required
 def update_product(product_id):
-    """Cập nhật sản phẩm"""
+    """Cập nhật sản phẩm (hỗ trợ multipart/form-data)"""
     try:
         name = request.form.get('name')
         description = request.form.get('description')
         price = request.form.get('price')
         stock_quantity = request.form.get('stock_quantity')
         category_id = request.form.get('category_id')
-        
         image_file = request.files.get('image')
         
         with get_db_connection() as conn:
@@ -126,13 +124,18 @@ def delete_product(product_id):
                 if product['image_url']:
                     delete_upload_file(product['image_url'])
                 
+                # Xóa sản phẩm
                 cur.execute("DELETE FROM products WHERE id = %s", (product_id,))
                 
                 return jsonify({'message': 'Xóa sản phẩm thành công'}), 200
                 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
+
+# =======================================================
+# CATEGORY MANAGEMENT (CRUD - Hoàn chỉnh)
+# =======================================================
+
 @admin_bp.route('/categories', methods=['GET'])
 @admin_required
 def get_all_categories():
@@ -163,31 +166,21 @@ def get_all_categories():
 @admin_bp.route('/categories', methods=['POST'])
 @admin_required
 def create_category():
-    """
-    Tạo category mới
-    
-    Form Data:
-    - name: Tên danh mục
-    - description: Mô tả
-    - image: File ảnh (optional)
-    """
+    """Tạo category mới (hỗ trợ multipart/form-data)"""
     try:
         name = request.form.get('name')
         description = request.form.get('description')
+        image_file = request.files.get('image')
         
         if not name:
             return jsonify({'error': 'Thiếu tên danh mục'}), 400
         
-        # Upload ảnh nếu có
-        image_file = request.files.get('image')
         image_url = None
-        
         if image_file:
             image_url = save_upload_file(image_file, folder='categories')
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
-                # Kiểm tra trùng tên
                 cur.execute("SELECT id FROM categories WHERE name = %s", (name,))
                 if cur.fetchone():
                     return jsonify({'error': 'Tên danh mục đã tồn tại'}), 400
@@ -220,7 +213,6 @@ def update_category(category_id):
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
-                # Lấy category cũ
                 cur.execute("""
                     SELECT image_url FROM categories WHERE id = %s
                 """, (category_id,))
@@ -232,14 +224,12 @@ def update_category(category_id):
                 
                 new_image_url = old_category['image_url']
                 
-                # Upload ảnh mới
                 if image_file:
                     if old_category['image_url']:
                         delete_upload_file(old_category['image_url'])
                     
                     new_image_url = save_upload_file(image_file, folder='categories')
                 
-                # Cập nhật
                 cur.execute("""
                     UPDATE categories
                     SET name = COALESCE(%s, name),
@@ -267,7 +257,6 @@ def delete_category(category_id):
     try:
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:
-                # Kiểm tra có product không
                 cur.execute("""
                     SELECT COUNT(*) as count FROM products WHERE category_id = %s
                 """, (category_id,))
@@ -279,7 +268,6 @@ def delete_category(category_id):
                         'error': f'Không thể xóa danh mục có {count} sản phẩm'
                     }), 400
                 
-                # Lấy image_url để xóa
                 cur.execute("""
                     SELECT image_url FROM categories WHERE id = %s
                 """, (category_id,))
@@ -289,11 +277,9 @@ def delete_category(category_id):
                 if not category:
                     return jsonify({'error': 'Danh mục không tồn tại'}), 404
                 
-                # Xóa ảnh
                 if category['image_url']:
                     delete_upload_file(category['image_url'])
                 
-                # Xóa category
                 cur.execute("DELETE FROM categories WHERE id = %s", (category_id,))
                 
                 return jsonify({'message': 'Xóa danh mục thành công'}), 200
