@@ -1,8 +1,8 @@
-from flask import Flask, send_from_directory, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from app.config import Config
-import os
+import io
 
 def create_app():
     app = Flask(__name__)
@@ -70,12 +70,36 @@ def create_app():
         
         print(f"{'='*80}\n")
     
-    # Serve static files
-    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads')
-    
-    @app.route('/uploads/<path:filename>')
-    def uploaded_file(filename):
-        return send_from_directory(UPLOAD_FOLDER, filename)
+    # ✅ ROUTE ĐỂ SERVE ẢNH TỪ PRODUCTS TABLE
+    @app.route('/api/images/products/<int:product_id>')
+    def serve_product_image(product_id):
+        """Serve ảnh sản phẩm từ products table"""
+        try:
+            from app.models import get_db_connection, get_db_cursor
+            
+            with get_db_connection() as conn:
+                with get_db_cursor(conn) as cur:
+                    cur.execute("""
+                        SELECT image_url, image_content_type
+                        FROM products
+                        WHERE id = %s
+                    """, (product_id,))
+                    
+                    result = cur.fetchone()
+                    
+                    if not result or not result['image_url']:
+                        return jsonify({'error': 'Ảnh không tồn tại'}), 404
+                    
+                    return send_file(
+                        io.BytesIO(result['image_url']),
+                        mimetype=result['image_content_type'] or 'image/jpeg',
+                        as_attachment=False,
+                        download_name=f'product_{product_id}.jpg'
+                    )
+        
+        except Exception as e:
+            print(f"[IMAGE ERROR] {str(e)}")
+            return jsonify({'error': str(e)}), 404
     
     # Register Blueprints
     from app.routes.auth import auth_bp

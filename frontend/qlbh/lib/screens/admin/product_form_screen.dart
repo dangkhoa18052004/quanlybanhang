@@ -55,7 +55,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   void _initializeForm() {
     if (widget.product != null) {
       _nameController.text = widget.product!.name;
-      _descriptionController.text = widget.product!.description;
+      _descriptionController.text = widget.product!.description ?? '';
       _priceController.text = widget.product!.price.toString();
       _stockController.text = widget.product!.stockQuantity.toString();
       _currentImageUrl = widget.product!.imageUrl;
@@ -111,7 +111,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       final description = _descriptionController.text.trim();
       final price = double.parse(_priceController.text);
       final stock = int.parse(_stockController.text);
-      final categoryId = _selectedCategory!.id!;
+      final categoryId = _selectedCategory!.id;
       final imagePath = _imageFile?.path;
 
       if (widget.product == null) {
@@ -131,7 +131,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       } else {
         // CHỨC NĂNG SỬA
         await AdminService.updateProduct(
-          productId: widget.product!.id!,
+          productId: widget.product!.id,
           name: name,
           description: description,
           price: price,

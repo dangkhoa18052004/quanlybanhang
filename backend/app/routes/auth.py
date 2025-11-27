@@ -210,7 +210,7 @@ def upload_avatar(current_user):  # ✅ FIX: Thêm parameter
         if not avatar_file:
             return jsonify({'error': 'Thiếu file ảnh'}), 400
         
-        from app.utils.upload_helper import save_upload_file, delete_upload_file
+        from backend.app.utils.simple_image_helper import save_upload_file, delete_upload_file
         
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cur:

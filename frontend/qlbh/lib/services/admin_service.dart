@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../models/product.dart';
 import '../models/category.dart';
+import '../models/user.dart';
 import 'package:http/http.dart' as http;
 
 class AdminService {
@@ -18,6 +19,15 @@ class AdminService {
   // ✅ Helper method để parse response
   static dynamic _parseResponse(String responseData) {
     return jsonDecode(responseData);
+  }
+
+  // ✅ Helper method để build image URL từ product ID
+  static String getImageUrl(int? productId) {
+    if (productId == null) {
+      return '';
+    }
+    // Image được serve từ endpoint /api/images/products/{product_id}
+    return '${ApiConfig.baseUrl}/images/products/$productId';
   }
 
   // ==================== PRODUCT MANAGEMENT ====================
@@ -61,22 +71,38 @@ class AdminService {
 
   static Future<Product> updateProduct({
     required int productId,
-    required Map<String, dynamic> updates,
+    String? name,
+    String? description,
+    double? price,
+    int? stockQuantity,
+    int? categoryId,
+    String? imagePath,
   }) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/products/$productId');
-    final token = await _getToken();
+    final uri = Uri.parse('$_adminBase/products/$productId');
+    final request = http.MultipartRequest('PUT', uri);
 
-    final response = await http.patch(
-      uri,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(updates),
-    );
+    final token = await _getToken();
+    if (token != null) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    if (name != null) request.fields['name'] = name;
+    if (description != null) request.fields['description'] = description;
+    if (price != null) request.fields['price'] = price.toString();
+    if (stockQuantity != null)
+      request.fields['stock_quantity'] = stockQuantity.toString();
+    if (categoryId != null)
+      request.fields['category_id'] = categoryId.toString();
+
+    if (imagePath != null) {
+      request.files.add(await http.MultipartFile.fromPath('image', imagePath));
+    }
+
+    final response = await request.send();
+    final responseData = await response.stream.bytesToString();
 
     if (response.statusCode == 200) {
-      final json = _parseResponse(response.body);
+      final json = _parseResponse(responseData);
       return Product.fromJson(json['product']);
     } else {
       throw Exception('Failed to update product');
@@ -84,7 +110,7 @@ class AdminService {
   }
 
   static Future<void> deleteProduct(int productId) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/products/$productId');
+    final uri = Uri.parse('$_adminBase/products/$productId');
     final token = await _getToken();
 
     final response = await http.delete(
@@ -200,6 +226,63 @@ class AdminService {
 
     if (response.statusCode != 200) {
       throw Exception('Failed to delete category');
+    }
+  }
+
+  // ==================== USER MANAGEMENT ====================
+
+  static Future<Map<String, dynamic>> getAllUsers({
+    String? role,
+    String? search,
+  }) async {
+    final queryParams = <String, String>{};
+    if (role != null) queryParams['role'] = role;
+    if (search != null && search.isNotEmpty) queryParams['search'] = search;
+
+    final uri = Uri.parse(
+      '$_adminBase/users',
+    ).replace(queryParameters: queryParams);
+    final token = await _getToken();
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      final List<dynamic> usersJson = json['users'];
+      return {
+        'users': usersJson.map((json) => User.fromJson(json)).toList(),
+        'pagination': json['pagination'],
+      };
+    } else {
+      throw Exception('Failed to load users');
+    }
+  }
+
+  static Future<void> updateUserRole({
+    required int userId,
+    required String role,
+  }) async {
+    final uri = Uri.parse('$_adminBase/users/$userId/role');
+    final token = await _getToken();
+
+    final response = await http.put(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'role': role}),
+    );
+
+    if (response.statusCode != 200) {
+      final error = jsonDecode(response.body);
+      throw Exception(error['error'] ?? 'Failed to update user role');
     }
   }
 

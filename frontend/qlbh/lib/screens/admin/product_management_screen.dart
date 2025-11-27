@@ -185,9 +185,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
                 ),
               ],
             ),
-            onTap: () {
-              // TODO: Chức năng Xem chi tiết quản lý
-            },
+            onTap: () {},
           ),
         );
       },
